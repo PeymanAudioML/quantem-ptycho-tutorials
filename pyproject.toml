@@ -1,0 +1,35 @@
+# Standalone env for the quantem diffractive_imaging tutorials
+# (https://github.com/electronmicroscopy/quantem-tutorials/tree/main/tutorials/diffractive_imaging).
+# Kept separate from the SGFM env at the repo root: quantem needs torch>=2.7 and numpy>2.
+[project]
+name = "quantem-diffractive-imaging-tutorials"
+version = "0.0.0"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+    "quantem",
+    "torch>=2.7.0",
+    "torchvision>=0.22.1",
+    "scikit-image>=0.25.2",
+    "optuna>=4.5.0",
+    "tensorboard>=2.19.0",
+    "matplotlib",
+    "numpy>2",
+    # notebooks
+    "jupyterlab>=4.4.0",
+    "ipykernel",
+    "ipywidgets",
+    "gdown",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+quantem = { git = "https://github.com/electronmicroscopy/quantem.git", branch = "main" }
+torch = [{ index = "pytorch-cu128", marker = "sys_platform == 'linux'" }]
+torchvision = [{ index = "pytorch-cu128", marker = "sys_platform == 'linux'" }]
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
