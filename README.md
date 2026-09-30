@@ -18,7 +18,7 @@ quantEM is installed from the `main` branch of its GitHub repo; the exact commit
 
 ## Data
 
-Datasets (`*.zip`) are not tracked. Most notebooks load from `../../data/`:
+Datasets are not tracked. Notebooks load from `data/` in the repo root (gitignored; a folder or a symlink to wherever you keep datasets), and write results to `outputs/`:
 
 - `white-noise-object_defocus+stig.zip`: generate with `simulation_notebooks/white-noise-object.ipynb` (numpy only, seconds).
 - `ducky_*`, `STO_*`, `apoF_*`: generate with the other `simulation_notebooks/` (require abTEM).
