@@ -21,6 +21,7 @@ python visualizations/white_noise_steps.py
 | `step7_wrong_parameters.png` | SSB with defocus, astigmatism or rotation ignored |
 | `step8_parallax_shifts.png` | Image shift per bright-field detector pixel: the aberrations in vector form |
 | `step9_hyperparameter_fit.png` | Optuna vs cross-correlation vs least-squares recovery of C10, C12, φ12 and rotation |
+| `probe_and_pattern_sizes.png` | Size and shape of the probe (real space) and diffraction pattern (reciprocal space), annotated — from `probe_and_pattern_sizes.py` |
 
 Note: with the quantEM commit pinned in `uv.lock`, `DirectPtychography` expects `rotation_angle`
 in **radians**. The tutorial notebook passes `rotation_angle=-13` (meant as degrees), which quantEM
