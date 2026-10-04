@@ -3,3 +3,5 @@ runs/
 *.zip
 /data
 outputs/
+__pycache__/
+*.pyc
