@@ -66,6 +66,24 @@ class SliceStack:
         return [0, w * self.pixel[1], h * self.pixel[0], 0]
 
 
+def _expand_dz(dz, n: int) -> np.ndarray:
+    """
+    Slice thicknesses as one value per slice.
+
+    Accepts a single number, N values, or N-1 values. quantEM stores N-1 values for N slices
+    (the spacing between consecutive slices); the last slice then gets the same thickness as the one
+    before it, which only affects where the last slice is drawn.
+    """
+    d = np.atleast_1d(np.asarray(dz, float))
+    if d.size == 1:
+        return np.full(n, float(d[0]))
+    if d.size == n:
+        return d.copy()
+    if d.size == n - 1:
+        return np.append(d, d[-1])
+    raise ValueError(f"slice thicknesses have {d.size} values, expected 1, {n - 1} or {n}")
+
+
 def as_slice_stack(
     obj,
     dz: float | np.ndarray | None = None,
@@ -99,7 +117,7 @@ def as_slice_stack(
         arr = np.angle(arr)
         default_label = "phase (rad)"
 
-    dz_arr = np.broadcast_to(np.asarray(1.0 if dz is None else dz, float), (arr.shape[0],)).copy()
+    dz_arr = _expand_dz(1.0 if dz is None else dz, arr.shape[0])
     if pixel is None:
         pixel = 1.0
     px = (float(pixel), float(pixel)) if np.isscalar(pixel) else (float(pixel[0]), float(pixel[1]))
