@@ -14,6 +14,8 @@ plain numpy array of shape (num_slices, H, W).
     plot_cross_sections(stack)                      # side views (x-z and y-z) at physical aspect
     slice_slider(stack)                             # interactive slider (needs an interactive backend)
     save_gif(stack, "slices.gif")                   # animation stepping through depth
+    save_gif(stack, "change.gif", mode="diff")      # animation of the change from the previous slice
+    save_html_viewer(stack, "slices.html")          # one self-contained page: slider, play, change view
 
 Command line (arrays saved with np.save(path, ptycho.obj_cropped)):
 
@@ -376,27 +378,251 @@ def slice_slider(
 
 
 def save_gif(stack: SliceStack, path: str | Path, fps: float = 3, cmap: str = "magma",
-             percentile: tuple[float, float] = (0.5, 99.8), shared_scale: bool = True) -> Path:
-    """Animation stepping through depth (needs Pillow, which matplotlib already depends on)."""
+             percentile: tuple[float, float] = (0.5, 99.8), shared_scale: bool = True,
+             mode: str = "value") -> Path:
+    """
+    Animation stepping through depth (needs Pillow, which matplotlib already depends on).
+
+    mode="value": each frame is one slice.
+    mode="diff":  each frame is slice k minus slice k-1 on a symmetric diverging scale, so you see
+                  exactly what changes between neighbouring slices (frame 0 is blank).
+    """
     from matplotlib.animation import FuncAnimation, PillowWriter
 
-    vmin, vmax = _clim(stack, percentile)
+    if mode not in ("value", "diff"):
+        raise ValueError("mode must be 'value' or 'diff'")
+    v = stack.values
+    if mode == "diff":
+        frames = np.concatenate([np.zeros_like(v[:1]), np.diff(v, axis=0)], axis=0)
+        lim = float(np.percentile(np.abs(frames[1:]), percentile[1])) if stack.n > 1 else 1.0
+        vmin, vmax, cmap, label = -lim, lim, "RdBu_r", f"change in {stack.label}"
+    else:
+        frames = v
+        vmin, vmax = _clim(stack, percentile)
+        label = stack.label
+
     fig, ax = plt.subplots(figsize=(5.4, 5))
-    kw = dict(vmin=vmin, vmax=vmax) if shared_scale else {}
-    im = ax.imshow(stack.values[0], cmap=cmap, extent=stack.extent_xy, **kw)
+    kw = dict(vmin=vmin, vmax=vmax) if (shared_scale or mode == "diff") else {}
+    im = ax.imshow(frames[0], cmap=cmap, extent=stack.extent_xy, **kw)
     ax.set_xlabel("x (Å)"); ax.set_ylabel("y (Å)")
-    fig.colorbar(im, ax=ax, fraction=0.046, pad=0.03, label=stack.label)
+    fig.colorbar(im, ax=ax, fraction=0.046, pad=0.03, label=label)
     title = ax.set_title("")
 
     def update(k):
-        im.set_data(stack.values[k])
-        title.set_text(f"slice {k}   z = {stack.z_centers[k]:.1f} Å")
+        im.set_data(frames[k])
+        what = f"slice {k}" if mode == "value" else (f"slice {k} − slice {k - 1}" if k else "slice 0 (reference)")
+        title.set_text(f"{what}   z = {stack.z_centers[k]:.1f} Å")
         return im, title
 
     anim = FuncAnimation(fig, update, frames=stack.n, blit=False)
     path = Path(path)
     anim.save(path, writer=PillowWriter(fps=fps))
     plt.close(fig)
+    return path
+
+
+def _downsample(values: np.ndarray, max_px: int) -> tuple[np.ndarray, int]:
+    """Block-average lateral pixels so the longest side is at most max_px. Returns (values, factor)."""
+    _, h, w = values.shape
+    f = max(1, math.ceil(max(h, w) / max_px))
+    if f == 1:
+        return values, 1
+    h2, w2 = h // f * f, w // f * f
+    v = values[:, :h2, :w2].reshape(values.shape[0], h2 // f, f, w2 // f, f).mean(axis=(2, 4))
+    return v, f
+
+
+def _nan_to_none(x):
+    if isinstance(x, (list, tuple, np.ndarray)):
+        return [_nan_to_none(i) for i in x]
+    x = float(x)
+    return None if not math.isfinite(x) else x
+
+
+_HTML_TEMPLATE = r"""<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__TITLE__</title>
+<style>
+:root{--bg:#fcfcfb;--fg:#0b0b0b;--muted:#52514e;--line:#e4e3df;--accent:#2a78d6;--panel:#f3f2ee;color-scheme:light}
+@media (prefers-color-scheme:dark){:root{--bg:#1a1a19;--fg:#f2f1ec;--muted:#b8b7ad;--line:#3a3a37;--accent:#5a9bea;--panel:#242422;color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:980px;margin:0 auto;padding:16px}
+h1{font-size:1.15rem;margin:0 0 4px}
+.sub{color:var(--muted);margin:0 0 14px}
+.grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:760px){.grid{grid-template-columns:minmax(0,1fr)}}
+.imgwrap{display:grid;grid-template-columns:minmax(0,1fr) 48px;gap:10px;align-items:stretch;min-width:0}
+#cv{width:100%;height:auto;align-self:start;image-rendering:pixelated;border:1px solid var(--line);background:#000;display:block}
+.cbar{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:12px;color:var(--muted)}
+#cb{width:14px;flex:1 1 0;height:0;min-height:0;border:1px solid var(--line)}
+.controls{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:12px;display:grid;gap:10px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+input[type=range]{flex:1;min-width:140px;accent-color:var(--accent)}
+button,select{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:5px 10px;cursor:pointer}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button.on{border-color:var(--accent);color:var(--accent)}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+td{padding:3px 0;border-bottom:1px solid var(--line)}
+td:last-child{text-align:right}
+#prof{width:100%;height:120px;display:block}
+.note{color:var(--muted);font-size:12px;margin-top:6px}
+</style></head><body><main>
+<h1>__TITLE__</h1>
+<p class="sub" id="sub"></p>
+<div class="grid">
+ <div>
+  <div class="imgwrap"><canvas id="cv"></canvas>
+   <div class="cbar"><span id="hi"></span><canvas id="cb" width="1" height="256"></canvas><span id="lo"></span></div></div>
+  <p class="note" id="status" aria-live="polite"></p>
+ </div>
+ <div style="display:grid;gap:14px">
+  <div class="controls">
+   <div class="row"><button id="prev" aria-label="Previous slice">&#9664;</button>
+    <input id="sl" type="range" min="0" value="0" step="1" aria-label="Slice">
+    <button id="next" aria-label="Next slice">&#9654;</button></div>
+   <div class="row"><button id="play">Play</button>
+    <label>speed <select id="fps"><option value="1">1/s</option><option value="2" selected>2/s</option><option value="4">4/s</option><option value="8">8/s</option></select></label></div>
+   <div class="row"><label>show <select id="view"><option value="value">potential of each slice</option><option value="diff">change from previous slice</option></select></label>
+    <label>colour scale <select id="range"><option value="shared">shared by all slices</option><option value="per">each slice on its own</option></select></label></div>
+  </div>
+  <div><table id="stats"></table></div>
+  <div><canvas id="prof" width="560" height="120"></canvas><p class="note">Total in each slice (sum &times; pixel area). Orange = the slice shown.</p></div>
+ </div>
+</div>
+<p class="note">Keys: &larr; &rarr; step through slices, space plays or pauses.</p>
+</main>
+<script>
+const META = __META__;
+const b64 = "__DATA__";
+const bin = atob(b64), bytes = new Uint8Array(bin.length);
+for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+const U = new Uint16Array(bytes.buffer);
+const S = META.S, H = META.H, W = META.W, N = H * W;
+const unit = (META.gmax - META.gmin) / 65535;
+const $ = id => document.getElementById(id);
+const sl = $('sl'), cv = $('cv'), ctx = cv.getContext('2d');
+const m = Math.max(1, Math.floor(480 / Math.max(H, W)));
+cv.width = W * m; cv.height = H * m; cv.style.maxWidth = (W * m) + 'px';
+const off = document.createElement('canvas'); off.width = W; off.height = H;
+const octx = off.getContext('2d'), img = octx.createImageData(W, H);
+sl.max = S - 1; sl.disabled = S < 2;
+let k = 0, timer = null;
+const fmt = v => (v === null || v === undefined) ? '–' : (Math.abs(v) >= 1e3 || (Math.abs(v) < 1e-2 && v !== 0)) ? v.toExponential(2) : v.toPrecision(3);
+
+function drawBar(lut, lo, hi) {
+  const c = $('cb').getContext('2d'), g = c.createImageData(1, 256);
+  for (let i = 0; i < 256; i++) { const col = lut[255 - i]; g.data.set([col[0], col[1], col[2], 255], 4 * i); }
+  c.putImageData(g, 0, 0);
+  $('hi').textContent = fmt(hi); $('lo').textContent = fmt(lo);
+}
+function paint(getv, lut, lo, hi) {
+  const inv = 1 / ((hi - lo) || 1), px = img.data;
+  for (let i = 0; i < N; i++) {
+    let t = (getv(i) - lo) * inv; t = t < 0 ? 0 : t > 1 ? 1 : t;
+    const c = lut[(t * 255) | 0]; px[4*i] = c[0]; px[4*i+1] = c[1]; px[4*i+2] = c[2]; px[4*i+3] = 255;
+  }
+  octx.putImageData(img, 0, 0);
+  ctx.imageSmoothingEnabled = false; ctx.drawImage(off, 0, 0, cv.width, cv.height);
+}
+function profile() {
+  const c = $('prof'), g = c.getContext('2d'), st = META.stats.integral;
+  const css = getComputedStyle(document.documentElement);
+  g.clearRect(0, 0, c.width, c.height);
+  const mx = Math.max(...st.map(Math.abs), 1e-12), mid = c.height / 2, bw = c.width / S;
+  g.strokeStyle = css.getPropertyValue('--line'); g.beginPath(); g.moveTo(0, mid); g.lineTo(c.width, mid); g.stroke();
+  for (let i = 0; i < S; i++) {
+    const h = st[i] / mx * (mid - 8);
+    g.fillStyle = i === k ? '#eb6834' : css.getPropertyValue('--accent');
+    g.fillRect(i * bw + bw * 0.1, h >= 0 ? mid - h : mid, bw * 0.8, Math.abs(h) || 1);
+  }
+}
+function render() {
+  const a = U.subarray(k * N, (k + 1) * N), view = $('view').value, rg = $('range').value;
+  if (view === 'value') {
+    const [lo, hi] = rg === 'shared' ? META.shared : META.per[k];
+    paint(i => META.gmin + a[i] * unit, META.lut_mag, lo, hi); drawBar(META.lut_mag, lo, hi);
+  } else {
+    const d = META.diff;
+    if (k === 0) paint(() => 0, META.lut_div, -d, d);
+    else { const b = U.subarray((k - 1) * N, k * N); paint(i => (a[i] - b[i]) * unit, META.lut_div, -d, d); }
+    drawBar(META.lut_div, -d, d);
+  }
+  sl.value = k;
+  const z = META.z[k], t = META.dz[k], st = META.stats;
+  $('status').textContent = (view === 'diff' ? (k ? `slice ${k} minus slice ${k-1}` : 'slice 0 is the reference') : `slice ${k} of ${S-1}`) +
+     `  ·  z = ${z.toFixed(2)} Å (slice thickness ${t.toFixed(2)} Å)`;
+  $('stats').innerHTML = [['mean', st.mean[k]], ['std', st.std[k]], ['maximum', st.max[k]], ['total (sum × area, ' + META.label + ' × Å²)', st.integral[k]],
+     ['mean |change| to next slice', st.diff_next[k]]].map(r => `<tr><td>${r[0]}</td><td>${fmt(r[1])}</td></tr>`).join('');
+  profile();
+}
+function go(n) { k = ((n % S) + S) % S; render(); }
+function setPlaying(on) {
+  if (timer) { clearInterval(timer); timer = null; }
+  $('play').textContent = on ? 'Pause' : 'Play'; $('play').classList.toggle('on', on);
+  if (on) timer = setInterval(() => go(k + 1), 1000 / +$('fps').value);
+}
+sl.addEventListener('input', () => go(+sl.value));
+$('prev').onclick = () => go(k - 1); $('next').onclick = () => go(k + 1);
+$('play').onclick = () => setPlaying(!timer);
+$('fps').onchange = () => { if (timer) setPlaying(true); };
+$('view').onchange = () => { $('range').disabled = $('view').value === 'diff'; render(); };
+$('range').onchange = render;
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight') go(k + 1); else if (e.key === 'ArrowLeft') go(k - 1);
+  else if (e.key === ' ' && e.target.tagName !== 'BUTTON' && e.target.tagName !== 'SELECT') { e.preventDefault(); setPlaying(!timer); }
+});
+$('sub').textContent = `${S} slices · ${W}×${H} px · ${META.pixel[1].toFixed(3)} Å per pixel · total thickness ${META.thickness.toFixed(2)} Å · ${META.label}`;
+render();
+</script></body></html>
+"""
+
+
+def save_html_viewer(stack: SliceStack, path: str | Path, max_px: int = 256,
+                     title: str | None = None, percentile: tuple[float, float] = (0.5, 99.8)) -> Path:
+    """
+    Write ONE self-contained .html file (no server, no internet, no Jupyter): a slider that steps
+    through the slices, a play button, a switch between "potential of each slice" and "change from
+    the previous slice", shared or per-slice colour scales, per-slice numbers and a depth profile.
+    Open it in any browser. Large stacks are block-averaged to at most max_px pixels per side.
+    """
+    import base64
+    import json
+
+    from matplotlib import colormaps
+
+    v, f = _downsample(stack.values, max_px)
+    n, h, w = v.shape
+    gmin, gmax = float(v.min()), float(v.max())
+    q = np.round((v - gmin) / ((gmax - gmin) or 1.0) * 65535).astype("<u2")
+
+    small = SliceStack(v, stack.dz, (stack.pixel[0] * f, stack.pixel[1] * f), stack.label)
+    st = slice_statistics(small)
+    diffs = np.abs(np.diff(v, axis=0))
+    dlim = float(np.percentile(diffs, percentile[1])) if diffs.size else 1.0
+
+    def lut(name):
+        return [[int(round(c * 255)) for c in rgba[:3]] for rgba in colormaps[name](np.linspace(0, 1, 256))]
+
+    meta = {
+        "S": n, "H": h, "W": w, "label": stack.label,
+        "z": stack.z_centers.tolist(), "dz": stack.dz.tolist(),
+        "pixel": list(small.pixel), "thickness": float(stack.z_edges[-1]),
+        "gmin": gmin, "gmax": gmax,
+        "shared": [float(x) for x in np.percentile(v, percentile)],
+        "per": [[float(x) for x in np.percentile(v[k], percentile)] for k in range(n)],
+        "diff": dlim or 1.0,
+        "stats": {"mean": _nan_to_none(st["mean"]), "std": _nan_to_none(st["std"]),
+                  "max": _nan_to_none(st["max"]), "integral": _nan_to_none(st["integral"]),
+                  "diff_next": _nan_to_none(st["diff_to_next"])},
+        "lut_mag": lut("magma"), "lut_div": lut("RdBu_r"),
+    }
+    page = (_HTML_TEMPLATE.replace("__TITLE__", title or "Slice explorer")
+            .replace("__META__", json.dumps(meta, allow_nan=False))
+            .replace("__DATA__", base64.b64encode(q.tobytes()).decode("ascii")))
+    path = Path(path)
+    path.write_text(page, encoding="utf-8")
     return path
 
 
@@ -462,7 +688,8 @@ def main():
     p.add_argument("--pixel", type=float, default=1.0, help="Angstrom per pixel (default 1)")
     p.add_argument("--label", default=None, help="what the values are, e.g. 'potential (V·Å)'")
     p.add_argument("--out", default="slice_figs", help="folder for the figures")
-    p.add_argument("--gif", action="store_true", help="also write an animated GIF")
+    p.add_argument("--gif", action="store_true", help="also write animated GIFs (slices, and change between slices)")
+    p.add_argument("--html", action="store_true", help="also write a self-contained slider page (slices.html)")
     p.add_argument("--show", action="store_true", help="open windows (and the slider) instead of only saving")
     p.add_argument("--demo", action="store_true", help="use a synthetic two-layer stack")
     a = p.parse_args()
@@ -478,7 +705,11 @@ def main():
 
     saved = explore(stack, a.out, show=a.show)
     if a.gif:
-        saved.append(save_gif(stack, Path(a.out) / "slices.gif"))
+        for name, mode in (("slices.gif", "value"), ("slices_change.gif", "diff")):
+            saved.append(save_gif(stack, Path(a.out) / name, mode=mode))
+            print("saved", saved[-1])
+    if a.html:
+        saved.append(save_html_viewer(stack, Path(a.out) / "slices.html"))
         print("saved", saved[-1])
     if a.show:
         slice_slider(stack)

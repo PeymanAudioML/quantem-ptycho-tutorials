@@ -26,3 +26,15 @@ Pitfalls this example works around (pinned quantEM commit):
 - **Constraints are plain dicts here**, e.g. `{"object": {"tv_weight_xy": 1e-3}}`. `PtychoObjConstraintParams`,
   used in `ptycho_iter_03_constraints.ipynb`, is not exported by this version.
 - **The Poisson loss is a negative log-likelihood and can be negative.** Don't normalise it by its first value.
+
+## `tools/slice_explorer.py`: look at a multislice reconstruction slice by slice
+
+```python
+from tools.slice_explorer import as_slice_stack, save_gif, save_html_viewer
+stack = as_slice_stack(ptycho_dip_free)               # or as_slice_stack(array, dz=1.0, pixel=0.157)
+save_gif(stack, "slices.gif")                         # one frame per slice
+save_gif(stack, "change.gif", mode="diff")            # each frame = slice k minus slice k-1
+save_html_viewer(stack, "slices.html")                # slider, play button, change view; opens in any browser
+```
+`examples/figures/slice_explorer/` holds the three outputs for a 6-slice test reconstruction of simulated MoS₂
+(not experimental data). The HTML file is self-contained, so it also works offline.
