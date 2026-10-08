@@ -102,3 +102,37 @@ unchanged. Caveats: static atoms and Gaussian potentials (strength ∝ Z^0.7), z
 all methods are only weakly depth-selective (a section correlates with slabs ±40 Å away because the depth
 of field is comparable to the slab); the advantage here is moderate, not the large gap seen in the
 overlapping-layer test; one random structure and one noise draw; S-matrix not fully converged.
+
+## tcBF → ACBF with quantem's own implementation (`run_quantem_acbf.py`, `make_quantem_figs.py`, `results_quantem/`)
+quantem (`DirectPtychography`) defines tcBF = `parallax` kernel and ACBF = `single-sideband` kernel; its
+workflow fits the aberrations (here defocus C10) with the parallax kernel, then reconstructs with the
+ACBF kernel. I ran it on the same simulated 4D data (needs torch + quantem; CPU). Depth sections = ACBF /
+parallax reconstructions at C10 = z − z_f (z_f = −df). The sign of C10 and the detector orientation were
+calibrated once on the 3-layer data (`results_quantem_calibration.json`: +1/no transpose gave peaks at
+40/140/270 Å for layers at 30/150/270 Å; the other three options scored far worse).
+"ACBF 3 df" = average of the ACBF sections from the three defocus datasets.
+
+| geometry | method | resolved | mean depth err | mean r |
+|---|---|---|---|---|
+| 3 layers | tcBF mine (3 df) | 3/3 | 8.5 Å | 0.80 |
+| | tcBF quantem (df=0) | 1/3 | 30.0 Å | 0.75 |
+| | ACBF quantem (df=0) | 3/3 | 6.7 Å | 0.82 |
+| | **ACBF quantem (3 df)** | 3/3 | 1.8 Å | 0.86 |
+| | S-matrix | 3/3 | 1.7 Å | 0.85 |
+| 6 layers, 1.5 rad | tcBF mine (3 df) | 3/6 | 24.2 Å | 0.55 |
+| | ACBF quantem (df=0) | 5/6 | 6.7 Å | 0.57 |
+| | **ACBF quantem (3 df)** | 6/6 | 10.9 Å | 0.68 |
+| | S-matrix | 6/6 | 10.9 Å | 0.70 |
+| polycrystal | tcBF mine (3 df) | – | 17.5 Å | 0.09 |
+| | ACBF quantem (df=0) | – | 11.9 Å | 0.62 |
+| | **ACBF quantem (3 df)** | – | 9.4 Å | 0.69 |
+| | S-matrix | – | 9.4 Å | 0.74 |
+
+**Important correction to the earlier comparisons:** my hand-written tcBF (shift-and-sum, no CTF correction)
+was a weak baseline. With quantem's aberration-corrected BF (ACBF) and the same three defocus datasets, the
+bright-field approach matches the S-matrix to within about 0.05 in correlation and has the same depth error
+in all three geometries. The S-matrix images are somewhat cleaner (less ringing) and its correlation is
+slightly higher, but in this simulated, weak-to-moderate-phase setting that is a small difference.
+The parallax kernel gives a blank image when the section depth equals the probe focus (C10 = 0).
+tcBF defocus fits (`summary.json`, `fits`) land on one dominant depth per dataset, e.g. 30 Å for df=−200
+in the 3-layer case, but vary between 30 and 260 Å for the 6-layer sample.
