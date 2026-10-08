@@ -1,0 +1,29 @@
+{
+  "final_loss": 0.0017381967045366764,
+  "first_loss": 0.05036323890089989,
+  "niter": 25,
+  "localisation": {
+    "ring (z=30 \u00c5)": {
+      "true_z": 30.0,
+      "best_z": 29.96293368415187,
+      "peak_z": 0.0,
+      "depth_of_field": 60.0,
+      "corr": 0.8739827126489605
+    },
+    "square lattice (z=150 \u00c5)": {
+      "true_z": 150.0,
+      "best_z": 149.9758040141446,
+      "peak_z": 140.0,
+      "depth_of_field": 80.0,
+      "corr": 0.8533275655849946
+    },
+    "triangle (z=270 \u00c5)": {
+      "true_z": 270.0,
+      "best_z": 275.1324188142195,
+      "peak_z": 300.0,
+      "depth_of_field": 50.0,
+      "corr": 0.8335072386264135
+    }
+  },
+  "depth_axis": "from entrance surface"
+}
