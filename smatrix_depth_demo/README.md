@@ -43,3 +43,21 @@ triangle 270 Å → 275 Å; depth of field about 50–80 Å (≈ 2λ/α²).
 * Simulated (noisy, noise-free-model-consistent) data, not experimental data; no distortion
   correction or alignment (`Aligner.py`, `Distortion_correct.py`) was needed or used.
 * Large intermediate files (`Smatrix_complex64.npy`, `layers_and_data.npz`) are git-ignored.
+
+## Comparison with tcBF (`compare_tcbf.py`)
+Same simulated data, same defocus values, same scoring (correlation of the section with each true
+layer). tcBF here = bright-field disk only (429 pixels inside 0.9 of the aperture edge); every BF
+pixel image is shifted by -λ·k·(z − z_f) (geometric sign, not fitted) and summed, for each trial
+depth z. A separate CTF-correction step (as in "aberration-corrected" BF variants) is **not**
+implemented. Scan sampling (0.8 Å) limits tcBF resolution; the S-matrix also uses the
+dark-field region of the diffraction pattern.
+
+| method | ring (30 Å) found / r | square (150 Å) | triangle (270 Å) |
+|---|---|---|---|
+| tcBF, df=0 only (1/3 of data) | 50 Å / +0.78 | 140 Å / +0.84 | 230 Å / +0.44 |
+| tcBF, df=−200 only (1/3 of data) | 55 Å / −0.82 | 175 Å / −0.91 | 275 Å / +0.76 |
+| tcBF, all 3 defocus (same data) | 25 Å / −0.84 | 165 Å / +0.77 | 265 Å / +0.78 |
+| S-matrix + refocusing (all 3) | 30 Å / +0.87 | 150 Å / +0.85 | 275 Å / +0.83 |
+
+Figures: `fig7_compare_images.png`, `fig8_compare_depth_curves.png`; numbers in
+`comparison_summary.json`. Negative r = contrast-inverted image (CTF effect).

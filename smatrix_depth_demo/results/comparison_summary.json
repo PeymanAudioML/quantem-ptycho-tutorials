@@ -1,0 +1,97 @@
+{
+  "shift_sign": -1,
+  "results": {
+    "tcBF, df=0 only (1/3 data)": {
+      "ring (z=30)": {
+        "true_z": 30.0,
+        "best_z": 50.06598213083615,
+        "peak_abs_corr": 0.7793043785602334,
+        "signed_corr_at_peak": 0.7793043785602334,
+        "depth_of_field": 20.0
+      },
+      "square (z=150)": {
+        "true_z": 150.0,
+        "best_z": 139.81489526044746,
+        "peak_abs_corr": 0.8432715504031364,
+        "signed_corr_at_peak": 0.8432715504031364,
+        "depth_of_field": 60.0
+      },
+      "triangle (z=270)": {
+        "true_z": 270.0,
+        "best_z": 229.91878437172335,
+        "peak_abs_corr": 0.4429884943680027,
+        "signed_corr_at_peak": 0.4429884943680027,
+        "depth_of_field": 20.0
+      }
+    },
+    "tcBF, df=-200 only (1/3 data)": {
+      "ring (z=30)": {
+        "true_z": 30.0,
+        "best_z": 55.04015689248177,
+        "peak_abs_corr": 0.8229760706100746,
+        "signed_corr_at_peak": -0.8229760706100746,
+        "depth_of_field": 30.0
+      },
+      "square (z=150)": {
+        "true_z": 150.0,
+        "best_z": 175.12247134450928,
+        "peak_abs_corr": 0.9086244120878254,
+        "signed_corr_at_peak": -0.9086244120878254,
+        "depth_of_field": 30.0
+      },
+      "triangle (z=270)": {
+        "true_z": 270.0,
+        "best_z": 275.21863700077324,
+        "peak_abs_corr": 0.7585472726026493,
+        "signed_corr_at_peak": 0.7585472726026493,
+        "depth_of_field": 50.0
+      }
+    },
+    "tcBF, all 3 defocus (same data)": {
+      "ring (z=30)": {
+        "true_z": 30.0,
+        "best_z": 24.797676245229518,
+        "peak_abs_corr": 0.8360280642552146,
+        "signed_corr_at_peak": -0.8360280642552146,
+        "depth_of_field": 50.0
+      },
+      "square (z=150)": {
+        "true_z": 150.0,
+        "best_z": 165.02895814842182,
+        "peak_abs_corr": 0.774501129923415,
+        "signed_corr_at_peak": 0.774501129923415,
+        "depth_of_field": 30.0
+      },
+      "triangle (z=270)": {
+        "true_z": 270.0,
+        "best_z": 264.85280993335897,
+        "peak_abs_corr": 0.7812412716446164,
+        "signed_corr_at_peak": 0.7812412716446164,
+        "depth_of_field": 50.0
+      }
+    },
+    "S-matrix + refocusing (all 3 defocus)": {
+      "ring (z=30)": {
+        "true_z": 30.0,
+        "best_z": 29.96293368415187,
+        "peak_abs_corr": 0.8739827126489605,
+        "signed_corr_at_peak": 0.8739827126489605,
+        "depth_of_field": 60.0
+      },
+      "square (z=150)": {
+        "true_z": 150.0,
+        "best_z": 149.9758040141446,
+        "peak_abs_corr": 0.8533275655849946,
+        "signed_corr_at_peak": 0.8533275655849946,
+        "depth_of_field": 80.0
+      },
+      "triangle (z=270)": {
+        "true_z": 270.0,
+        "best_z": 275.1324188142195,
+        "peak_abs_corr": 0.8335072386264135,
+        "signed_corr_at_peak": 0.8335072386264135,
+        "depth_of_field": 50.0
+      }
+    }
+  }
+}
