@@ -1,3 +1,4 @@
 results/Smatrix_complex64.npy
 results/layers_and_data.npz
 __pycache__/
+results/stdout.log
