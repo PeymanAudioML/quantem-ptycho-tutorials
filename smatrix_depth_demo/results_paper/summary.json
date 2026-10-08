@@ -1,0 +1,914 @@
+{
+  "baseline_3layers": {
+    "tcbf paper (df=-200)": {
+      "n_resolved": 1,
+      "n_layers": 3,
+      "mean_abs_depth_err": 28.378129396643427,
+      "max_abs_depth_err": 35.05516451645266,
+      "mean_abs_r": 0.8621527899867396,
+      "n_contrast_inverted": 2,
+      "per_layer": [
+        [
+          30.0,
+          60.0,
+          -0.85
+        ],
+        [
+          150.0,
+          185.1,
+          -0.95
+        ],
+        [
+          270.0,
+          290.1,
+          0.79
+        ]
+      ]
+    },
+    "acbf paper (df=-200)": {
+      "n_resolved": 3,
+      "n_layers": 3,
+      "mean_abs_depth_err": 1.7808301827716153,
+      "max_abs_depth_err": 5.180916541696206,
+      "mean_abs_r": 0.866957604195055,
+      "n_contrast_inverted": 0,
+      "per_layer": [
+        [
+          30.0,
+          29.8,
+          0.92
+        ],
+        [
+          150.0,
+          150.0,
+          0.89
+        ],
+        [
+          270.0,
+          275.2,
+          0.79
+        ]
+      ]
+    },
+    "tcbf paper (df=-100)": {
+      "n_resolved": 1,
+      "n_layers": 3,
+      "mean_abs_depth_err": 29.999228147508376,
+      "max_abs_depth_err": 35.01954745793785,
+      "mean_abs_r": 0.8385785420532123,
+      "n_contrast_inverted": 1,
+      "per_layer": [
+        [
+          30.0,
+          65.0,
+          -0.9
+        ],
+        [
+          150.0,
+          185.0,
+          0.82
+        ],
+        [
+          270.0,
+          250.0,
+          0.8
+        ]
+      ]
+    },
+    "acbf paper (df=-100)": {
+      "n_resolved": 2,
+      "n_layers": 3,
+      "mean_abs_depth_err": 21.669622594431644,
+      "max_abs_depth_err": 50.0,
+      "mean_abs_r": 0.8407948837599409,
+      "n_contrast_inverted": 0,
+      "per_layer": [
+        [
+          30.0,
+          44.8,
+          0.87
+        ],
+        [
+          150.0,
+          100.0,
+          0.82
+        ],
+        [
+          270.0,
+          269.8,
+          0.84
+        ]
+      ]
+    },
+    "tcbf paper (df=0)": {
+      "n_resolved": 1,
+      "n_layers": 3,
+      "mean_abs_depth_err": 30.018834779486923,
+      "max_abs_depth_err": 44.93369432742756,
+      "mean_abs_r": 0.7144074211962744,
+      "n_contrast_inverted": 0,
+      "per_layer": [
+        [
+          30.0,
+          60.1,
+          0.8
+        ],
+        [
+          150.0,
+          134.9,
+          0.84
+        ],
+        [
+          270.0,
+          225.1,
+          0.5
+        ]
+      ]
+    },
+    "acbf paper (df=0)": {
+      "n_resolved": 3,
+      "n_layers": 3,
+      "mean_abs_depth_err": 11.63926301310741,
+      "max_abs_depth_err": 19.92899710473668,
+      "mean_abs_r": 0.8411471556270937,
+      "n_contrast_inverted": 0,
+      "per_layer": [
+        [
+          30.0,
+          40.1,
+          0.84
+        ],
+        [
+          150.0,
+          130.1,
+          0.85
+        ],
+        [
+          270.0,
+          274.9,
+          0.84
+        ]
+      ]
+    },
+    "acbf paper (3 df summed, extension)": {
+      "n_resolved": 3,
+      "n_layers": 3,
+      "mean_abs_depth_err": 3.4504549418133714,
+      "max_abs_depth_err": 5.171789539327293,
+      "mean_abs_r": 0.8828076799287926,
+      "n_contrast_inverted": 0,
+      "per_layer": [
+        [
+          30.0,
+          35.2,
+          0.93
+        ],
+        [
+          150.0,
+          149.8,
+          0.87
+        ],
+        [
+          270.0,
+          265.0,
+          0.85
+        ]
+      ]
+    },
+    "S-matrix + refocusing": {
+      "n_resolved": 3,
+      "n_layers": 3,
+      "mean_abs_depth_err": 1.7329604146204396,
+      "max_abs_depth_err": 5.12966395133401,
+      "mean_abs_r": 0.8539940189759291,
+      "n_contrast_inverted": 0,
+      "per_layer": [
+        [
+          30.0,
+          30.0,
+          0.87
+        ],
+        [
+          150.0,
+          150.0,
+          0.85
+        ],
+        [
+          270.0,
+          275.1,
+          0.83
+        ]
+      ]
+    }
+  },
+  "six_phi1p5": {
+    "tcbf paper (df=-200)": {
+      "n_resolved": 4,
+      "n_layers": 6,
+      "mean_abs_depth_err": 17.53120160741497,
+      "max_abs_depth_err": 34.99948821895785,
+      "mean_abs_r": 0.6225624793247836,
+      "n_contrast_inverted": 4,
+      "per_layer": [
+        [
+          25.0,
+          4.9,
+          -0.65
+        ],
+        [
+          75.0,
+          85.0,
+          -0.72
+        ],
+        [
+          125.0,
+          160.0,
+          -0.71
+        ],
+        [
+          175.0,
+          175.1,
+          -0.56
+        ],
+        [
+          225.0,
+          245.0,
+          0.42
+        ],
+        [
+          275.0,
+          295.1,
+          0.68
+        ]
+      ]
+    },
+    "acbf paper (df=-200)": {
+      "n_resolved": 5,
+      "n_layers": 6,
+      "mean_abs_depth_err": 19.216891347569653,
+      "max_abs_depth_err": 40.08614021246402,
+      "mean_abs_r": 0.6807166020843717,
+      "n_contrast_inverted": 0,
+      "per_layer": [
+        [
+          25.0,
+          4.9,
+          0.83
+        ],
+        [
+          75.0,
+          79.9,
+          0.73
+        ],
+        [
+          125.0,
+          165.1,
+          0.73
+        ],
+        [
+          175.0,
+          185.1,
+          0.53
+        ],
+        [
+          225.0,
+          200.0,
+          0.57
+        ],
+        [
+          275.0,
+          290.1,
+          0.7
+        ]
+      ]
+    },
+    "tcbf paper (df=-100)": {
+      "n_resolved": 4,
+      "n_layers": 6,
+      "mean_abs_depth_err": 29.190855349395132,
+      "max_abs_depth_err": 89.89537132060819,
+      "mean_abs_r": 0.6490507755956249,
+      "n_contrast_inverted": 4,
+      "per_layer": [
+        [
+          25.0,
+          4.9,
+          -0.83
+        ],
+        [
+          75.0,
+          85.0,
+          -0.85
+        ],
+        [
+          125.0,
+          90.0,
+          -0.46
+        ],
+        [
+          175.0,
+          85.1,
+          -0.5
+        ],
+        [
+          225.0,
+          220.0,
+          0.6
+        ],
+        [
+          275.0,
+          290.1,
+          0.66
+        ]
+      ]
+    },
+    "acbf paper (df=-100)": {
+      "n_resolved": 5,
+      "n_layers": 6,
+      "mean_abs_depth_err": 11.752081162497058,
+      "max_abs_depth_err": 20.070382500001813,
+      "mean_abs_r": 0.6713194033150202,
+      "n_contrast_inverted": 0,
+      "per_layer": [
+        [
+          25.0,
+          4.9,
+          0.88
+        ],
+        [
+          75.0,
+          85.1,
+          0.79
+        ],
+        [
+          125.0,
+          114.8,
+          0.55
+        ],
+        [
+          175.0,
+          174.9,
+          0.47
+        ],
+        [
+          225.0,
+          215.0,
+          0.61
+        ],
+        [
+          275.0,
+          295.1,
+          0.73
+        ]
+      ]
+    },
+    "tcbf paper (df=0)": {
+      "n_resolved": 4,
+      "n_layers": 6,
+      "mean_abs_depth_err": 55.8136818699087,
+      "max_abs_depth_err": 275.0,
+      "mean_abs_r": 0.5119222372097529,
+      "n_contrast_inverted": 1,
+      "per_layer": [
+        [
+          25.0,
+          40.0,
+          0.48
+        ],
+        [
+          75.0,
+          80.0,
+          0.67
+        ],
+        [
+          125.0,
+          134.8,
+          0.52
+        ],
+        [
+          175.0,
+          164.9,
+          0.52
+        ],
+        [
+          225.0,
+          205.0,
+          0.52
+        ],
+        [
+          275.0,
+          0.0,
+          -0.36
+        ]
+      ]
+    },
+    "acbf paper (df=0)": {
+      "n_resolved": 6,
+      "n_layers": 6,
+      "mean_abs_depth_err": 15.789457033203869,
+      "max_abs_depth_err": 25.0,
+      "mean_abs_r": 0.6369089955617794,
+      "n_contrast_inverted": 0,
+      "per_layer": [
+        [
+          25.0,
+          0.0,
+          0.77
+        ],
+        [
+          75.0,
+          60.1,
+          0.7
+        ],
+        [
+          125.0,
+          130.0,
+          0.53
+        ],
+        [
+          175.0,
+          155.1,
+          0.51
+        ],
+        [
+          225.0,
+          220.1,
+          0.62
+        ],
+        [
+          275.0,
+          300.0,
+          0.69
+        ]
+      ]
+    },
+    "acbf paper (3 df summed, extension)": {
+      "n_resolved": 6,
+      "n_layers": 6,
+      "mean_abs_depth_err": 11.719260621741917,
+      "max_abs_depth_err": 25.0,
+      "mean_abs_r": 0.7104616550623453,
+      "n_contrast_inverted": 0,
+      "per_layer": [
+        [
+          25.0,
+          0.0,
+          0.9
+        ],
+        [
+          75.0,
+          75.0,
+          0.78
+        ],
+        [
+          125.0,
+          135.0,
+          0.63
+        ],
+        [
+          175.0,
+          175.2,
+          0.56
+        ],
+        [
+          225.0,
+          210.0,
+          0.63
+        ],
+        [
+          275.0,
+          295.1,
+          0.77
+        ]
+      ]
+    },
+    "S-matrix + refocusing": {
+      "n_resolved": 6,
+      "n_layers": 6,
+      "mean_abs_depth_err": 10.882712785718354,
+      "max_abs_depth_err": 20.083880088410385,
+      "mean_abs_r": 0.6998710865656509,
+      "n_contrast_inverted": 0,
+      "per_layer": [
+        [
+          25.0,
+          4.9,
+          0.85
+        ],
+        [
+          75.0,
+          70.0,
+          0.75
+        ],
+        [
+          125.0,
+          135.1,
+          0.59
+        ],
+        [
+          175.0,
+          180.0,
+          0.57
+        ],
+        [
+          225.0,
+          219.9,
+          0.64
+        ],
+        [
+          275.0,
+          295.1,
+          0.79
+        ]
+      ]
+    }
+  },
+  "six_phi2p5": {
+    "tcbf paper (df=-200)": {
+      "n_resolved": 3,
+      "n_layers": 6,
+      "mean_abs_depth_err": 24.153752079351666,
+      "max_abs_depth_err": 44.812402142700876,
+      "mean_abs_r": 0.5275744782462153,
+      "n_contrast_inverted": 5,
+      "per_layer": [
+        [
+          25.0,
+          14.8,
+          -0.56
+        ],
+        [
+          75.0,
+          99.9,
+          -0.62
+        ],
+        [
+          125.0,
+          165.0,
+          -0.7
+        ],
+        [
+          175.0,
+          170.1,
+          -0.46
+        ],
+        [
+          225.0,
+          180.2,
+          -0.31
+        ],
+        [
+          275.0,
+          295.1,
+          0.52
+        ]
+      ]
+    },
+    "acbf paper (df=-200)": {
+      "n_resolved": 4,
+      "n_layers": 6,
+      "mean_abs_depth_err": 22.583256792141885,
+      "max_abs_depth_err": 50.00521971527482,
+      "mean_abs_r": 0.5927334297182029,
+      "n_contrast_inverted": 0,
+      "per_layer": [
+        [
+          25.0,
+          9.9,
+          0.68
+        ],
+        [
+          75.0,
+          85.1,
+          0.63
+        ],
+        [
+          125.0,
+          175.0,
+          0.69
+        ],
+        [
+          175.0,
+          195.1,
+          0.49
+        ],
+        [
+          225.0,
+          200.0,
+          0.54
+        ],
+        [
+          275.0,
+          290.2,
+          0.54
+        ]
+      ]
+    },
+    "tcbf paper (df=-100)": {
+      "n_resolved": 4,
+      "n_layers": 6,
+      "mean_abs_depth_err": 29.967625751220098,
+      "max_abs_depth_err": 94.87411209603624,
+      "mean_abs_r": 0.6101910850275812,
+      "n_contrast_inverted": 4,
+      "per_layer": [
+        [
+          25.0,
+          4.9,
+          -0.78
+        ],
+        [
+          75.0,
+          80.0,
+          -0.83
+        ],
+        [
+          125.0,
+          85.1,
+          -0.43
+        ],
+        [
+          175.0,
+          80.1,
+          -0.48
+        ],
+        [
+          225.0,
+          220.1,
+          0.52
+        ],
+        [
+          275.0,
+          290.1,
+          0.62
+        ]
+      ]
+    },
+    "acbf paper (df=-100)": {
+      "n_resolved": 5,
+      "n_layers": 6,
+      "mean_abs_depth_err": 27.502926358526366,
+      "max_abs_depth_err": 94.66111002735926,
+      "mean_abs_r": 0.5970508471544572,
+      "n_contrast_inverted": 0,
+      "per_layer": [
+        [
+          25.0,
+          14.9,
+          0.79
+        ],
+        [
+          75.0,
+          85.0,
+          0.79
+        ],
+        [
+          125.0,
+          100.0,
+          0.51
+        ],
+        [
+          175.0,
+          80.3,
+          0.38
+        ],
+        [
+          225.0,
+          219.9,
+          0.5
+        ],
+        [
+          275.0,
+          295.1,
+          0.61
+        ]
+      ]
+    },
+    "tcbf paper (df=0)": {
+      "n_resolved": 1,
+      "n_layers": 6,
+      "mean_abs_depth_err": 56.69563589880348,
+      "max_abs_depth_err": 270.10144078511945,
+      "mean_abs_r": 0.4439175923214391,
+      "n_contrast_inverted": 2,
+      "per_layer": [
+        [
+          25.0,
+          0.0,
+          -0.4
+        ],
+        [
+          75.0,
+          80.0,
+          0.57
+        ],
+        [
+          125.0,
+          130.0,
+          0.43
+        ],
+        [
+          175.0,
+          164.9,
+          0.44
+        ],
+        [
+          225.0,
+          200.1,
+          0.47
+        ],
+        [
+          275.0,
+          4.9,
+          -0.36
+        ]
+      ]
+    },
+    "acbf paper (df=0)": {
+      "n_resolved": 2,
+      "n_layers": 6,
+      "mean_abs_depth_err": 12.471876199809385,
+      "max_abs_depth_err": 29.899219003582942,
+      "mean_abs_r": 0.5247741284310009,
+      "n_contrast_inverted": 0,
+      "per_layer": [
+        [
+          25.0,
+          0.0,
+          0.74
+        ],
+        [
+          75.0,
+          65.0,
+          0.6
+        ],
+        [
+          125.0,
+          129.9,
+          0.43
+        ],
+        [
+          175.0,
+          145.1,
+          0.4
+        ],
+        [
+          225.0,
+          225.0,
+          0.48
+        ],
+        [
+          275.0,
+          280.0,
+          0.5
+        ]
+      ]
+    },
+    "acbf paper (3 df summed, extension)": {
+      "n_resolved": 5,
+      "n_layers": 6,
+      "mean_abs_depth_err": 13.385642323309787,
+      "max_abs_depth_err": 25.0,
+      "mean_abs_r": 0.6404295184217293,
+      "n_contrast_inverted": 0,
+      "per_layer": [
+        [
+          25.0,
+          4.9,
+          0.83
+        ],
+        [
+          75.0,
+          75.1,
+          0.78
+        ],
+        [
+          125.0,
+          139.9,
+          0.59
+        ],
+        [
+          175.0,
+          175.2,
+          0.49
+        ],
+        [
+          225.0,
+          200.0,
+          0.51
+        ],
+        [
+          275.0,
+          295.1,
+          0.62
+        ]
+      ]
+    },
+    "S-matrix + refocusing": {
+      "n_resolved": 6,
+      "n_layers": 6,
+      "mean_abs_depth_err": 10.880410736638927,
+      "max_abs_depth_err": 20.043494738825018,
+      "mean_abs_r": 0.6658599335858097,
+      "n_contrast_inverted": 0,
+      "per_layer": [
+        [
+          25.0,
+          5.0,
+          0.82
+        ],
+        [
+          75.0,
+          70.0,
+          0.73
+        ],
+        [
+          125.0,
+          135.1,
+          0.58
+        ],
+        [
+          175.0,
+          180.1,
+          0.51
+        ],
+        [
+          225.0,
+          220.0,
+          0.59
+        ],
+        [
+          275.0,
+          295.0,
+          0.77
+        ]
+      ]
+    }
+  },
+  "poly": {
+    "tcbf paper (df=-150)": {
+      "mean_diag_r": -0.47632513009011745,
+      "mean_depth_err_A": 13.125,
+      "frac_within_10A": 0.625,
+      "selectivity": 0.344128472048558,
+      "n_inverted": 16,
+      "n_depths": 16
+    },
+    "acbf paper (df=-150)": {
+      "mean_diag_r": 0.5600898861885071,
+      "mean_depth_err_A": 15.625,
+      "frac_within_10A": 0.5,
+      "selectivity": 0.39801526366586226,
+      "n_inverted": 0,
+      "n_depths": 16
+    },
+    "tcbf paper (df=-75)": {
+      "mean_diag_r": -0.04441743716597557,
+      "mean_depth_err_A": 14.375,
+      "frac_within_10A": 0.5,
+      "selectivity": 0.4872936116432905,
+      "n_inverted": 8,
+      "n_depths": 16
+    },
+    "acbf paper (df=-75)": {
+      "mean_diag_r": 0.6491945460438728,
+      "mean_depth_err_A": 16.875,
+      "frac_within_10A": 0.5,
+      "selectivity": 0.5496678520006146,
+      "n_inverted": 0,
+      "n_depths": 16
+    },
+    "tcbf paper (df=0)": {
+      "mean_diag_r": 0.5828688582405448,
+      "mean_depth_err_A": 11.875,
+      "frac_within_10A": 0.75,
+      "selectivity": 0.491574414995127,
+      "n_inverted": 1,
+      "n_depths": 16
+    },
+    "acbf paper (df=0)": {
+      "mean_diag_r": 0.6279276646673679,
+      "mean_depth_err_A": 14.375,
+      "frac_within_10A": 0.5625,
+      "selectivity": 0.47268518619990607,
+      "n_inverted": 0,
+      "n_depths": 16
+    },
+    "acbf paper (3 df summed, extension)": {
+      "mean_diag_r": 0.694993894547224,
+      "mean_depth_err_A": 9.375,
+      "frac_within_10A": 0.8125,
+      "selectivity": 0.5609532165671385,
+      "n_inverted": 0,
+      "n_depths": 16
+    },
+    "S-matrix + refocusing": {
+      "mean_diag_r": 0.7428352758288383,
+      "mean_depth_err_A": 9.375,
+      "frac_within_10A": 0.8125,
+      "selectivity": 0.6108151358197402,
+      "n_inverted": 0,
+      "n_depths": 16
+    }
+  }
+}

@@ -136,3 +136,26 @@ slightly higher, but in this simulated, weak-to-moderate-phase setting that is a
 The parallax kernel gives a blank image when the section depth equals the probe focus (C10 = 0).
 tcBF defocus fits (`summary.json`, `fits`) land on one dominant depth per dataset, e.g. 30 Å for df=−200
 in the 3-layer case, but vary between 30 and 260 Å for the 6-layer sample.
+
+## Paper-faithful tcBF / acBF vs S-matrix (`paper_acbf.py`, `run_paper_compare.py`, `results_paper/`)
+Implements Ma, Lee, Shi, Muller, Zeltmann, "Parallax Depth Sectioning and 3D Reconstruction in 4D-STEM" in NumPy
+from its equations (defocus-only): D = I − I0; tcBF = Σ_Θ D̃ e^{−i2πq·Θ(Δf−z)} (Eq. 4); acBF additionally multiplies each
+pixel/frequency by e^{−i arg PCTFres_z} (Eq. 5–7), evaluated at depth z. tcBF and acBF are alternatives
+(acBF = tcBF + per-pixel phase correction), each from **one** 4D dataset; each of my 3 defocus datasets is processed on its
+own. Conventions fixed once on the 3-layer data: detector handedness Θ = −λk, and a global sign flip of the acBF output
+(uniform at all depths and structures; Rose's phase-sign convention vs my e^{+iφ}). "3 df summed" is my extension (sum of the
+three single-dataset acBF stacks), the only variant with the same total data as the S-matrix.
+
+| structure | tcBF paper, single df (mean err / mean\|r\|) | acBF paper, single df | acBF paper, 3 df summed* | S-matrix (3 df) |
+|---|---|---|---|---|
+| 3 layers | 29.5 Å / 0.80 | 11.7 Å / 0.85 | 3.5 Å / 0.88 | 1.7 Å / 0.85 |
+| 6 layers, 1.5 rad | 34.2 Å / 0.59 | 15.6 Å / 0.66 | 11.7 Å / 0.71 | 10.9 Å / 0.70 |
+| 6 layers, 2.5 rad | 37.0 Å / 0.53 | 20.9 Å / 0.57 | 13.4 Å / 0.64 | 10.9 Å / 0.67 |
+| polycrystal (r vs slab, 16 depths) | 13.1/14.4/11.9 Å, r = −0.48/−0.04/+0.58 | 14.4–16.9 Å, r = +0.56…+0.65 | 9.4 Å / +0.69 | 9.4 Å / +0.74 |
+
+Layers resolved (|err| ≤ 25 Å and |r| > 0.5): 3-layer acBF 3 df 3/3, S-matrix 3/3; 6 layers 1.5 rad 6/6 vs 6/6;
+6 layers 2.5 rad acBF 3 df 5/6 vs S-matrix 6/6. Single-dataset acBF depends strongly on the defocus (e.g. 3 layers:
+1.8 Å at df=−200, 21.7 Å at df=−100, 11.6 Å at df=0), consistent with the paper's advice to defocus beyond about twice the
+depth of field. Figures: `fig_pp1_summary.png`, `fig_pp_images_*.png`; numbers: `summary.json`.
+Caveats: simulated data, one noise draw, weak/moderate-phase regime; the paper itself warns the linear model fails for thick
+or heavy samples.
