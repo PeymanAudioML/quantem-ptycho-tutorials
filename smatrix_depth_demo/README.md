@@ -61,3 +61,24 @@ dark-field region of the diffraction pattern.
 
 Figures: `fig7_compare_images.png`, `fig8_compare_depth_curves.png`; numbers in
 `comparison_summary.json`. Negative r = contrast-inverted image (CTF effect).
+
+## Harder geometries: where S-matrix beats tcBF (`run_config.py`, `sweep_compare.py`)
+6 overlapping layers (ring, square lattice, triangle, plus, X, diamond; all centred on the same
+axis; 50 Å spacing, z = 25…275 Å), phase per atom 1.5 and 2.5 rad (baseline: 3 layers, 1.0 rad).
+Same data for both methods (all 3 defocus, 2×10⁵ e⁻/pattern, 25 S-matrix iterations, single
+noise draw). "Resolved" = depth error ≤ 25 Å and |r| > 0.5 with the true layer.
+
+| geometry | method | layers resolved | mean abs. depth error | mean abs. r | contrast-inverted layers |
+|---|---|---|---|---|---|
+| 3 layers, 1.0 rad | tcBF (3 df) | 3/3 | 8.5 Å | 0.80 | 1 |
+| | S-matrix | 3/3 | 1.7 Å | 0.85 | 0 |
+| 6 layers, 1.5 rad | tcBF (3 df) | 3/6 | 24.2 Å | 0.55 | 3 |
+| | S-matrix | 6/6 | 10.9 Å | 0.70 | 0 |
+| 6 layers, 2.5 rad | tcBF (3 df) | 2/6 | 49.2 Å | 0.47 | 4 |
+| | S-matrix | 6/6 | 10.9 Å | 0.67 | 0 |
+
+Figures and numbers: `results_sweep/` (`sweep_summary.png`, `sweep_images_*.png`,
+`sweep_curves_*.png`, `sweep_summary.json`); per-config data in `results_six_*/`.
+Caveats: the S-matrix sections of overlapping middle layers show clear cross-talk (r ≈ 0.5–0.6);
+the outer layers are found at the edge of the 0–300 Å scan range; the strong-phase run is less
+converged (loss 0.0094 vs 0.0042); one noise draw, no repeats.

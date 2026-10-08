@@ -1,0 +1,1 @@
+{"name": "six_phi1p5", "phase_scale": 1.5, "layer_z": [25.0, 75.0, 125.0, 175.0, 225.0, 275.0], "motifs": ["ring", "square", "triangle", "plus", "X", "diamond"], "mu": 60.0, "niter": 25, "dose": 200000.0}
