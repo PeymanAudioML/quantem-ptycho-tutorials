@@ -1,0 +1,56 @@
+{
+  "tcBF (df=0 only)": {
+    "full_band_truth": {
+      "mean_diag_r": 0.5761593187848533,
+      "mean_abs_diag_r": 0.5812500710124849,
+      "mean_depth_err_A": 12.5,
+      "frac_within_10A": 0.6875,
+      "selectivity": 0.4444692810921924,
+      "n_inverted": 1
+    },
+    "scan_limited_truth": {
+      "mean_diag_r": 0.1929104038896982,
+      "mean_abs_diag_r": 0.1993742117059764,
+      "mean_depth_err_A": 17.5,
+      "frac_within_10A": 0.5625,
+      "selectivity": 0.13907774539708803,
+      "n_inverted": 1
+    }
+  },
+  "tcBF (3 defocus)": {
+    "full_band_truth": {
+      "mean_diag_r": 0.09033867683466161,
+      "mean_abs_diag_r": 0.4320933203874545,
+      "mean_depth_err_A": 17.5,
+      "frac_within_10A": 0.5,
+      "selectivity": 0.3620510450672306,
+      "n_inverted": 8
+    },
+    "scan_limited_truth": {
+      "mean_diag_r": -0.22040153307751123,
+      "mean_abs_diag_r": 0.3377511468532687,
+      "mean_depth_err_A": 18.125,
+      "frac_within_10A": 0.4375,
+      "selectivity": 0.24887183541731703,
+      "n_inverted": 11
+    }
+  },
+  "S-matrix + refocusing": {
+    "full_band_truth": {
+      "mean_diag_r": 0.7453347928822041,
+      "mean_abs_diag_r": 0.7453347928822041,
+      "mean_depth_err_A": 9.375,
+      "frac_within_10A": 0.8125,
+      "selectivity": 0.6122516270558359,
+      "n_inverted": 0
+    },
+    "scan_limited_truth": {
+      "mean_diag_r": 0.3371410514702964,
+      "mean_abs_diag_r": 0.3371410514702964,
+      "mean_depth_err_A": 8.125,
+      "frac_within_10A": 0.8125,
+      "selectivity": 0.25390721172930375,
+      "n_inverted": 0
+    }
+  }
+}

@@ -82,3 +82,23 @@ Figures and numbers: `results_sweep/` (`sweep_summary.png`, `sweep_images_*.png`
 Caveats: the S-matrix sections of overlapping middle layers show clear cross-talk (r ≈ 0.5–0.6);
 the outer layers are found at the edge of the 0–300 Å scan range; the strong-phase run is less
 converged (loss 0.0094 vs 0.0042); one noise draw, no repeats.
+
+## Polycrystal test (`run_poly.py`, `analyze_poly.py`, `results_poly/`)
+CaAl₂Si₂O₈ (the authors' 24-atom structure file), 8 randomly rotated 3-D Voronoi grains, 150 Å thick
+(17,807 atoms, 60 slices of 2.5 Å; projected phase mean 2.3 rad, max 10 rad, i.e. strongly dynamical).
+Probe defoci −150/−75/0 Å, 30 S-matrix iterations (final loss 0.0146, still slowly decreasing).
+Reference = sum of the true slice phases within ±20 Å of each section depth; scored by the correlation
+of each section with the true slab at every depth (`fig_p3_depth_matrices.png`).
+
+| method (full-band truth) | mean r at correct depth | mean depth error | within 10 Å | selectivity | inverted (of 16) |
+|---|---|---|---|---|---|
+| tcBF, df=0 only | +0.58 | 12.5 Å | 69% | 0.44 | 1 |
+| tcBF, 3 defocus | +0.09 | 17.5 Å | 50% | 0.36 | 8 |
+| S-matrix + refocusing | +0.75 | 9.4 Å | 81% | 0.61 | 0 |
+
+(selectivity = |r| at the right depth minus mean |r| at depths ≥ 60 Å away). Against the same truth
+blurred to the 1.6 Å scan sampling, every score drops (S-matrix 0.34, tcBF df=0 0.19) and the ranking is
+unchanged. Caveats: static atoms and Gaussian potentials (strength ∝ Z^0.7), zone-axis grains only;
+all methods are only weakly depth-selective (a section correlates with slabs ±40 Å away because the depth
+of field is comparable to the slab); the advantage here is moderate, not the large gap seen in the
+overlapping-layer test; one random structure and one noise draw; S-matrix not fully converged.
