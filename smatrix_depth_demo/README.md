@@ -184,3 +184,17 @@ Conclusion: my S-matrix recovery and refocusing implement the authors' algorithm
 arbitrary phase on numerically zero pixels, and they reach equivalent depth results on this dataset. My version runs about
 6× faster per iteration on CPU (≈32 s vs ≈190 s), my step-size parameter MU is not the authors' μ, and the equivalence was
 shown for one dataset (3 layers, one noise draw), not for experimental data, scan distortion, specimen tilt or diffraction shift.
+
+### Authors' unmodified code on the polycrystal (`CHECK_DATASET=poly python check_authors_code.py ... full 10`)
+Same setup as the 3-layer check (their defaults: mu = 1.0, 10 iterations, `padding=1.5`, CPU, 1,863 s), run on the
+8-grain CaAl₂Si₂O₈ data (defocus −150/−75/0 Å) and refocused with their `depth_section_reconstruction` (`t = −z`).
+Same caveat: my copies of their two files are not byte-identical to the manifest.
+
+| | mean depth error | mean r at correct depth | within 10 Å | selectivity | inverted |
+|---|---|---|---|---|---|
+| authors' code (10 it, mu=1) | 9.4 Å | +0.74 | 81% | +0.61 | 0/16 |
+| my code (30 it, MU=60) | 9.4 Å | +0.74 | 81% | +0.61 | 0/16 |
+
+Their sections and mine correlate 0.98–0.99 at every depth. My-forward-model amplitude loss over all 1875 patterns:
+vacuum start 0.427, authors' final S 0.0131, my final S 0.0129 (the log line in the script says "25 it"; the polycrystal
+run used 30). Figure: `results_authors/fig_authors_vs_mine_poly.png`. One structure, one noise draw.

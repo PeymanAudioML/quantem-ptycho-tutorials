@@ -41,7 +41,10 @@ import smatrix_depth_demo as m
 m.MU = 60.0                                                                    # the step size used for all my published runs
 
 OUT = os.path.join(HERE, "results_authors"); os.makedirs(OUT, exist_ok=True)
-base = os.path.join(HERE, "results")
+DATASET = os.environ.get("CHECK_DATASET", "3layer")                            # "3layer" (default) or "poly"
+base = os.path.join(HERE, "results_poly" if DATASET == "poly" else "results")
+if DATASET == "poly":
+    cfg = json.load(open(os.path.join(base, "config.json"))); m.DEFOCI = cfg["defoci"]
 d = np.load(os.path.join(base, "layers_and_data.npz")); dps, layers = d["dps"], d["layers"]
 sec = np.load(os.path.join(base, "sections.npz")); depths = sec["depths"]
 CROP = np.s_[48:148, 48:148]
@@ -112,27 +115,37 @@ elif mode == "equiv":
 
 elif mode == "full":
     niter = int(sys.argv[4]) if len(sys.argv) > 4 else 10
-    import sweep_compare as sc
     dc, dims, sc_ = authors_inputs()
     t0 = time.time()
     S_a, beams_index, smat_dims, Loss = GradDS.reconstruct_Smatrix_from_datacube(
         dc, dims, m.DEFOCI, m.ALPHA * 1e3, m.EV, mu=1.0, niterations=niter, nchunks=30, padding=1.5,
         scan_coordinates=sc_, stream_datacube=True, report_memory=False, report_loss=True)
     print(f"authors' recovery (mu=1.0, {niter} it): {time.time()-t0:.0f}s, their loss {np.round(Loss, 4)}", flush=True)
-    np.save(os.path.join(OUT, "S_authors_mu1.npy"), S_a)
+    np.save(os.path.join(OUT, f"S_authors_mu1_{DATASET}.npy"), S_a)
     EW = authors_refocus(S_a, beams_index, smat_dims, -depths)
     ph = np.angle(EW)[(slice(None),) + CROP]
     mine = np.angle(sec["ew"])[(slice(None),) + CROP]
-    sc.depths = depths; sc.ext_c = slice(48, 148)
-    lz = m.LAYER_Z; layers_c = [L[CROP] for L in layers]
     out = {}
-    for name, st in (("authors", ph), ("mine", mine)):
-        C = np.array([[sc.corr(st[i], L) for L in layers_c] for i in range(len(depths))])
-        r = sc.summarise(C, lz)
-        out[name] = dict(depth_err=r["mean_abs_depth_err"], max_err=r["max_abs_depth_err"], mean_abs_r=r["mean_abs_r"], resolved=r["n_resolved"], found=[round(x["found_z"], 1) for x in r["layers"]])
-        print(f"{name}: depth err {r['mean_abs_depth_err']:.1f} A (max {r['max_abs_depth_err']:.1f}), mean|r| {r['mean_abs_r']:.2f}, resolved {r['n_resolved']}/3, found {out[name]['found']}")
+    if DATASET == "poly":
+        import paper_acbf as pa
+        zc = (np.arange(layers.shape[0]) + 0.5) * cfg["dz"]
+        slabs_c = [layers[np.abs(zc - z) <= 20.0].sum(0)[CROP] for z in depths]
+        for name, st in (("authors", ph), ("mine", mine)):
+            out[name] = pa.poly_metrics(st, slabs_c, depths)
+            r = out[name]
+            print(f"{name}: depth err {r['mean_depth_err_A']:.1f} A, mean r {r['mean_diag_r']:+.2f}, within 10 A {r['frac_within_10A']*100:.0f}%, selectivity {r['selectivity']:+.2f}, inverted {r['n_inverted']}/{r['n_depths']}")
+    else:
+        import sweep_compare as sc
+        sc.depths = depths; sc.ext_c = slice(48, 148)
+        lz = m.LAYER_Z; layers_c = [L[CROP] for L in layers]
+        for name, st in (("authors", ph), ("mine", mine)):
+            C = np.array([[sc.corr(st[i], L) for L in layers_c] for i in range(len(depths))])
+            r = sc.summarise(C, lz)
+            out[name] = dict(depth_err=r["mean_abs_depth_err"], max_err=r["max_abs_depth_err"], mean_abs_r=r["mean_abs_r"], resolved=r["n_resolved"], found=[round(x["found_z"], 1) for x in r["layers"]])
+            print(f"{name}: depth err {r['mean_abs_depth_err']:.1f} A (max {r['max_abs_depth_err']:.1f}), mean|r| {r['mean_abs_r']:.2f}, resolved {r['n_resolved']}/3, found {out[name]['found']}")
     cs = [corr(ph[i], mine[i]) for i in range(len(depths))]
-    print("per-depth correlation of sections, authors' vs mine:", np.round(cs, 2).tolist())
+    print("per-depth correlation of sections, authors' vs mine:", np.round(cs, 2).tolist(), flush=True)
+    out["per_depth_corr"] = cs
     # score BOTH final S-matrices with MY forward model (relative amplitude loss on all 1875 patterns)
     by, bx = m.beam_list(); nb = len(by); kby, kbx = by / m.LW, bx / m.LW; k2 = kby ** 2 + kbx ** 2
     key = {(int(a), int(b)): i for i, (a, b) in enumerate(zip(*beams_index))}
@@ -154,5 +167,5 @@ elif mode == "full":
     S0 = (np.exp(2j*np.pi*kby[:, None]*(np.arange(m.Y)[None, :]*m.DR))[:, :, None] * np.exp(2j*np.pi*kbx[:, None]*(np.arange(m.X)[None, :]*m.DR))[:, None, :]).astype(np.complex64)
     for name, Sx in (("vacuum start", S0), ("authors' final S", S_a_m), ("my final S (25 it)", S_m)):
         out["loss_" + name] = float(loss_of(Sx)); print(f"my-metric relative amplitude loss, {name}: {out['loss_' + name]:.5f}", flush=True)
-    json.dump(out, open(os.path.join(OUT, f"full_{niter}it.json"), "w"), indent=2)
-    np.savez_compressed(os.path.join(OUT, "authors_full_sections.npz"), depths=depths, phase=ph, loss=Loss)
+    json.dump(out, open(os.path.join(OUT, f"full_{niter}it_{DATASET}.json"), "w"), indent=2)
+    np.savez_compressed(os.path.join(OUT, f"authors_full_sections_{DATASET}.npz"), depths=depths, phase=ph, loss=Loss)
