@@ -1,0 +1,72 @@
+[
+  {
+    "path": "Gradient_descent_scattering_matrix/README.md",
+    "bytes": 534,
+    "sha256": "127910c31b247a0a892ad32e526864660003d74f05164cd3d2a1468ca01f048b"
+  },
+  {
+    "path": "Gradient_descent_scattering_matrix/1000048.p1",
+    "bytes": 3651,
+    "sha256": "f9af61a5c74bea5ed00825e23ebee5a349b78a2cba0989455c6b9b729b002757"
+  },
+  {
+    "path": "Gradient_descent_scattering_matrix/Generate_test_data.py",
+    "bytes": 1893,
+    "sha256": "dac9495e5bb47757e38d3e137326de61adcffb641602dd397fd6cb3397e1a450"
+  },
+  {
+    "path": "Gradient_descent_scattering_matrix/setup.py",
+    "bytes": 551,
+    "sha256": "9d11e1685ade2aba7c7035ed2771bc38ce09c749b39a2dba616c43f8b9482d68"
+  },
+  {
+    "path": "Gradient_descent_scattering_matrix/Test.py",
+    "bytes": 5131,
+    "sha256": "961030c5237cfdd985ee77517df9f6366e520c88209ce95f359118c5b8147a01"
+  },
+  {
+    "path": "Gradient_descent_scattering_matrix/GradDS/__init__.py",
+    "bytes": 134,
+    "sha256": "85fe5594f97462d073ea78dd3f53788913ea0b816027e50420c2a616f5a26cbb"
+  },
+  {
+    "path": "Gradient_descent_scattering_matrix/GradDS/AmpflowS.py",
+    "bytes": 31223,
+    "sha256": "7e13961debd9f93ec6924c3a488cf395f136bf7b490e01a9776fa3d84d7ac1fa"
+  },
+  {
+    "path": "Gradient_descent_scattering_matrix/GradDS/Optical_sectioning.py",
+    "bytes": 13457,
+    "sha256": "e3c1da0e751146f140e7a52e56bb3d814f9b3947cc22f820cc379638e8da1c00"
+  },
+  {
+    "path": "Process_datasets.py",
+    "bytes": 11907,
+    "sha256": "b184248a29802c9e9c6bbcfcdb2b24ea50205418e24ed23539b1da212a7dc7a2"
+  },
+  {
+    "path": "Distortion_correct.py",
+    "bytes": 11922,
+    "sha256": "5b01823fd58023e6ebda13d02e8ddda5b5ed4f17f2c05fec896ace9fb6ebaa74"
+  },
+  {
+    "path": "Aligner.py",
+    "bytes": 4196,
+    "sha256": "abd8ee732346eeab541c63afce8a151c0a93f87891e2296889ef9f74b6ca76ce"
+  },
+  {
+    "path": "Readme.txt",
+    "bytes": 1214,
+    "sha256": "47ffb5e40d2c2ac3a117a609afb090981e4731db631155b8264c42bc1f00b9e4"
+  },
+  {
+    "path": "Inputs/PACBED.tif",
+    "bytes": 65670,
+    "sha256": "94ca228a16823c94ab125252569fa007c8298fb37d62ce071573256c62bb28e2"
+  },
+  {
+    "path": "Inputs/141_HAADF_4D_concurrent.tif",
+    "bytes": 64646,
+    "sha256": "54946f18ab7bd1ae9d7b65bcb2c4598b1224765f2f82f219ef97336506fcdc64"
+  }
+]

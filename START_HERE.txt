@@ -1,0 +1,27 @@
+S-matrix recovery and virtual depth refocusing: Brown et al.
+
+Paper: A single-projection three-dimensional reconstruction algorithm for scanning transmission electron microscopy data.
+Source: https://arxiv.org/abs/2011.07652v2
+Downloaded source: https://arxiv.org/src/2011.07652v2
+
+Contents are the authors' ancillary files, with source files unchanged.
+Git repository internals, editor settings and Python bytecode caches are omitted.
+SHA256_MANIFEST.json records every included author file.
+
+Main files:
+Gradient_descent_scattering_matrix/GradDS/AmpflowS.py
+  reconstruct_Smatrix_from_datacube: recover the scattering matrix.
+Gradient_descent_scattering_matrix/GradDS/Optical_sectioning.py
+  depth_section_reconstruction: refocus the scattering matrix at trial depths.
+Gradient_descent_scattering_matrix/Test.py
+  Example that produces phase depth sections and saves Optical_section.h5.
+
+Read the authors' README.md and Readme.txt for their original instructions.
+Recovery uses CuPy/CUDA; sectioning uses PyTorch. The simulation example
+also requires py_multislice: https://github.com/HamishGBrown/py_multislice
+That external dependency is not included in this archive.
+Raw experimental 4D-STEM datasets are not included; the authors' Readme.txt
+says these must be requested from them. Two ancillary TIFF inputs are included.
+
+The code has not been executed or adapted for current dependencies.
+This package preserves research code; it is not a tested installation.
