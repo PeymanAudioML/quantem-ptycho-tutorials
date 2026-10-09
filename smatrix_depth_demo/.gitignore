@@ -5,3 +5,5 @@ results/stdout.log
 results_*/Smatrix_complex64.npy
 results_*/layers_and_data.npz
 results_*/stdout.log
+results_authors/S_authors_mu1.npy
+results_authors/authors_full_sections.npz

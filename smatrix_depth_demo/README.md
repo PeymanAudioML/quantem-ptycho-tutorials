@@ -159,3 +159,28 @@ Layers resolved (|err| ≤ 25 Å and |r| > 0.5): 3-layer acBF 3 df 3/3, S-matrix
 depth of field. Figures: `fig_pp1_summary.png`, `fig_pp_images_*.png`; numbers: `summary.json`.
 Caveats: simulated data, one noise draw, weak/moderate-phase regime; the paper itself warns the linear model fails for thick
 or heavy samples.
+
+## Check against the authors' own code (`check_authors_code.py`, `debug_first_chunk.py`, `results_authors/`)
+The authors' **unmodified** `GradDS/AmpflowS.py` and `Optical_sectioning.py` were run on my simulated 3-layer data
+(CPU only): `cupy` replaced by a NumPy stand-in (`authors_shim/cupy`), removed NumPy aliases restored, and the legacy
+`torch.fft(x, ndim, normalized)` re-implemented. Their `padding=1.5` option gives the same 192×192 (38.4 Å) S-matrix grid and
+529 beams as mine. **Caveat:** the Dropbox download hosts are blocked in my sandbox, so I re-typed the authors' two files
+from the text returned by the Dropbox connector; they are NOT byte-identical to `SHA256_MANIFEST.json` (49 and 33 bytes
+shorter, probably whitespace, unverified). Please re-run `check_authors_code.py` with the original files to confirm.
+
+| test | result |
+|---|---|
+| Refocusing: authors' `depth_section_reconstruction` vs my `depth_sections`, same S-matrix | phase images correlate 1.0000 at every depth with `t = −z` (and ≈0.2 with `t = +z`, which also confirms my depth convention) |
+| Recovery, first chunk, illumination vector | identical (ratio exactly K, phase difference 1.5e-8 rad) |
+| Recovery, first chunk, forward prediction | identical (max difference 1.9e-8) |
+| Residual on pixels where the model predicts a non-zero amplitude (13% in iteration 1) | identical (2e-8) |
+| Residual on the other pixels (model amplitude numerically 0, ~49% of residual energy) | **differs**: the phase of a numerical zero is rounding noise, so the two codes pick different arbitrary phases (≈200 pixels per pattern). Intrinsic to amplitude flow from a vacuum start |
+| Back-projection update given the same residual (step size mapped by μ_authors = MU·nscan/(nbeams·overlap) = 0.369 for MU = 60) | identical (7e-5 relative, float32) |
+| After 2 iterations at equivalent step | S-matrices differ (relative difference 1.04, per-beam update correlation 0.76), due to the arbitrary phases above |
+| **Final outcome**: authors' code with its own defaults (μ = 1.0, 10 iterations, 1885 s on CPU) vs mine (MU = 60, 25 iterations) | depth sections correlate 0.99–1.00 at every depth; layers found at 29.9/150.0/275.1 Å (authors) vs 30.0/150.0/275.1 Å (mine); depth error 1.7 Å for both; mean \|r\| 0.86 vs 0.85 |
+| My forward-model amplitude loss on all 1875 patterns | vacuum 0.0572, authors' final S 0.00127, my final S 0.00153 (the authors' larger step converges faster per iteration) |
+
+Conclusion: my S-matrix recovery and refocusing implement the authors' algorithm; they agree step by step except for the
+arbitrary phase on numerically zero pixels, and they reach equivalent depth results on this dataset. My version runs about
+6× faster per iteration on CPU (≈32 s vs ≈190 s), my step-size parameter MU is not the authors' μ, and the equivalence was
+shown for one dataset (3 layers, one noise draw), not for experimental data, scan distortion, specimen tilt or diffraction shift.
