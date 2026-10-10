@@ -209,6 +209,7 @@ The existing NumPy code and experiments are unchanged (only an optional `S_init`
 Main results (simulated data, details and caveats in the report):
 * relative defocus / astigmatism errors between the defocus datasets are recovered to ≈ 85 % at 0.2–0.4 Å scan
   steps, but only 15–26 % at the existing 0.8 Å step, where the data undersample S (Pelz's oversampling criterion);
+  recovery holds down to 2·10⁴ e⁻/pattern and drops to 33 % at 2·10³;
 * an aberration common to all datasets (incl. the reference) is not identifiable and becomes an absolute depth offset;
 * probe refinement corrects layer placement by ≤ 5 Å where the probe is recovered, but does not change the axial
   resolution (≈ 105 Å FWHM) or the cross-talk — no depth-resolution improvement is claimed.

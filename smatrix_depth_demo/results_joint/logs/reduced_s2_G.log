@@ -1,0 +1,119 @@
+simulated reduced_s2/G in 4s
+== reduced_s2 config G variant fixed seed 0: 32 S iterations
+  S iter   1  rel. amplitude loss 0.05653  (12.2s)
+  S iter   2  rel. amplitude loss 0.04287  (12.9s)
+  S iter   3  rel. amplitude loss 0.03330  (12.0s)
+  S iter   4  rel. amplitude loss 0.02663  (12.2s)
+  S iter   5  rel. amplitude loss 0.02191  (12.6s)
+  S iter   6  rel. amplitude loss 0.01853  (12.2s)
+  S iter   7  rel. amplitude loss 0.01606  (12.2s)
+  S iter   8  rel. amplitude loss 0.01423  (11.6s)
+  S iter   9  rel. amplitude loss 0.01285  (10.9s)
+  S iter  10  rel. amplitude loss 0.01179  (10.9s)
+  S iter  11  rel. amplitude loss 0.01095  (10.7s)
+  S iter  12  rel. amplitude loss 0.01029  (10.9s)
+  S iter  13  rel. amplitude loss 0.00975  (10.0s)
+  S iter  14  rel. amplitude loss 0.00931  (10.7s)
+  S iter  15  rel. amplitude loss 0.00893  (10.5s)
+  S iter  16  rel. amplitude loss 0.00862  (10.3s)
+  S iter  17  rel. amplitude loss 0.00835  (10.7s)
+  S iter  18  rel. amplitude loss 0.00812  (10.0s)
+  S iter  19  rel. amplitude loss 0.00791  (10.0s)
+  S iter  20  rel. amplitude loss 0.00773  (10.1s)
+  S iter  21  rel. amplitude loss 0.00757  (9.7s)
+  S iter  22  rel. amplitude loss 0.00742  (10.6s)
+  S iter  23  rel. amplitude loss 0.00729  (12.1s)
+  S iter  24  rel. amplitude loss 0.00717  (13.7s)
+  S iter  25  rel. amplitude loss 0.00706  (13.1s)
+  S iter  26  rel. amplitude loss 0.00696  (11.9s)
+  S iter  27  rel. amplitude loss 0.00686  (12.0s)
+  S iter  28  rel. amplitude loss 0.00677  (13.8s)
+  S iter  29  rel. amplitude loss 0.00669  (13.9s)
+  S iter  30  rel. amplitude loss 0.00644  (13.6s)
+  S iter  31  rel. amplitude loss 0.00642  (12.9s)
+  S iter  32  rel. amplitude loss 0.00640  (12.8s)
+-> loss 0.00640, depth err 18.3 A, probe err [0.452 0.452 0.452], S err 0.264 (z_out -30), runtime 374s, peak 1168 MB
+== reduced_s2 config G variant joint seed 0: 32 S iterations
+  S iter   1  rel. amplitude loss 0.05653  (12.0s)
+  S iter   2  rel. amplitude loss 0.04287  (11.8s)
+  S iter   3  rel. amplitude loss 0.03330  (10.6s)
+  S iter   4  rel. amplitude loss 0.02663  (13.7s)
+  S iter   5  rel. amplitude loss 0.02191  (12.3s)
+  S iter   6  rel. amplitude loss 0.01853  (11.0s)
+  S iter   7  rel. amplitude loss 0.01606  (13.3s)
+  S iter   8  rel. amplitude loss 0.01423  (12.3s)
+  probe update after S iter 8: loss 0.00440  dC [A] = [[ 0.   0.   0.   0.   0.   0.   0.   0. ] [-4.7  4.7 -4.7  0.   0.   0.   0.   0. ] [-4.7 -4.7 -4.7  0.   0.   0.   0.   0. ]]
+  probe update after S iter 8: loss 0.00451  dC [A] = [[ 0.   0.   0.   0.   0.   0.   0.   0. ] [-1.8  1.6 -1.3  0.   0.   0.   0.   0. ] [-1.7 -1.5 -1.2  0.   0.   0.   0.   0. ]]
+  S iter   9  rel. amplitude loss 0.01287  (10.9s)
+  S iter  10  rel. amplitude loss 0.01181  (10.4s)
+  S iter  11  rel. amplitude loss 0.01097  (11.2s)
+  probe update after S iter 11: loss 0.00346  dC [A] = [[ 0.   0.   0.   0.   0.   0.   0.   0. ] [ 1.  -1.4  2.   0.   0.   0.   0.   0. ] [ 1.3  1.5  2.1  0.   0.   0.   0.   0. ]]
+  probe update after S iter 11: loss 0.00349  dC [A] = [[ 0.   0.   0.   0.   0.   0.   0.   0. ] [ 1.9 -2.4  3.1  0.   0.   0.   0.   0. ] [ 1.8  2.3  2.9  0.   0.   0.   0.   0. ]]
+  S iter  12  rel. amplitude loss 0.01048  (11.0s)
+  S iter  13  rel. amplitude loss 0.00991  (10.1s)
+  S iter  14  rel. amplitude loss 0.00944  (10.4s)
+  probe update after S iter 14: loss 0.00295  dC [A] = [[ 0.   0.   0.   0.   0.   0.   0.   0. ] [ 1.5 -1.6  2.7  0.   0.   0.   0.   0. ] [ 1.2  1.7  2.4  0.   0.   0.   0.   0. ]]
+  probe update after S iter 14: loss 0.00293  dC [A] = [[ 0.   0.   0.   0.   0.   0.   0.   0. ] [ 0.4 -0.1  1.4  0.   0.   0.   0.   0. ] [-0.   0.5  1.3  0.   0.   0.   0.   0. ]]
+  S iter  15  rel. amplitude loss 0.00895  (10.4s)
+  S iter  16  rel. amplitude loss 0.00863  (10.5s)
+  S iter  17  rel. amplitude loss 0.00836  (10.1s)
+  probe update after S iter 17: loss 0.00263  dC [A] = [[ 0.   0.   0.   0.   0.   0.   0.   0. ] [-0.9  1.3  0.   0.   0.   0.   0.   0. ] [-1.1 -0.7  0.1  0.   0.   0.   0.   0. ]]
+  probe update after S iter 17: loss 0.00263  dC [A] = [[ 0.   0.   0.   0.   0.   0.   0.   0. ] [-1.6  2.  -0.8  0.   0.   0.   0.   0. ] [-1.3 -1.4 -0.6  0.   0.   0.   0.   0. ]]
+  S iter  18  rel. amplitude loss 0.00818  (10.0s)
+  S iter  19  rel. amplitude loss 0.00796  (9.6s)
+  S iter  20  rel. amplitude loss 0.00778  (10.2s)
+  probe update after S iter 20: loss 0.00249  dC [A] = [[ 0.   0.   0.   0.   0.   0.   0.   0. ] [-1.7  1.9 -1.2  0.   0.   0.   0.   0. ] [-1.  -1.4 -0.7  0.   0.   0.   0.   0. ]]
+  probe update after S iter 20: loss 0.00250  dC [A] = [[ 0.   0.   0.   0.   0.   0.   0.   0. ] [-1.2  1.3 -0.9  0.   0.   0.   0.   0. ] [-0.3 -0.9 -0.3  0.   0.   0.   0.   0. ]]
+  S iter  21  rel. amplitude loss 0.00759  (10.5s)
+  S iter  22  rel. amplitude loss 0.00744  (10.4s)
+  S iter  23  rel. amplitude loss 0.00731  (10.4s)
+  probe update after S iter 23: loss 0.00236  dC [A] = [[ 0.   0.   0.   0.   0.   0.   0.   0. ] [-0.3  0.4 -0.3  0.   0.   0.   0.   0. ] [ 0.3 -0.3  0.4  0.   0.   0.   0.   0. ]]
+  probe update after S iter 23: loss 0.00236  dC [A] = [[ 0.   0.   0.   0.   0.   0.   0.   0. ] [ 0.5 -0.3  0.4  0.   0.   0.   0.   0. ] [ 0.6  0.2  0.9  0.   0.   0.   0.   0. ]]
+  S iter  24  rel. amplitude loss 0.00719  (10.5s)
+  S iter  25  rel. amplitude loss 0.00707  (11.1s)
+  S iter  26  rel. amplitude loss 0.00697  (11.5s)
+  probe update after S iter 26: loss 0.00221  dC [A] = [[ 0.   0.   0.   0.   0.   0.   0.   0. ] [ 0.9 -0.7  0.9  0.   0.   0.   0.   0. ] [ 0.5  0.4  1.1  0.   0.   0.   0.   0. ]]
+  probe update after S iter 26: loss 0.00221  dC [A] = [[ 0.   0.   0.   0.   0.   0.   0.   0. ] [ 0.7 -0.5  1.1  0.   0.   0.   0.   0. ] [ 0.2  0.1  1.   0.   0.   0.   0.   0. ]]
+  S iter  27  rel. amplitude loss 0.00688  (10.0s)
+  S iter  28  rel. amplitude loss 0.00679  (10.1s)
+  S iter  29  rel. amplitude loss 0.00670  (10.1s)
+  probe update after S iter 29: loss 0.00217  dC [A] = [[ 0.   0.   0.   0.   0.   0.   0.   0. ] [ 0.2 -0.   0.9  0.   0.   0.   0.   0. ] [-0.1 -0.3  0.6  0.   0.   0.   0.   0. ]]
+  probe update after S iter 29: loss 0.00216  dC [A] = [[ 0.   0.   0.   0.   0.   0.   0.   0. ] [-0.3  0.6  0.5  0.   0.   0.   0.   0. ] [-0.2 -0.7  0.2  0.   0.   0.   0.   0. ]]
+  S iter  30  rel. amplitude loss 0.00645  (10.6s)
+  S iter  31  rel. amplitude loss 0.00643  (10.1s)
+  S iter  32  rel. amplitude loss 0.00640  (10.1s)
+-> loss 0.00640, depth err 18.3 A, probe err [0.452 0.46  0.456], S err 0.264 (z_out -30), runtime 441s, peak 1537 MB
+== reduced_s2 config G variant oracle seed 0: 32 S iterations
+  S iter   1  rel. amplitude loss 0.05653  (10.9s)
+  S iter   2  rel. amplitude loss 0.04287  (11.1s)
+  S iter   3  rel. amplitude loss 0.03332  (10.9s)
+  S iter   4  rel. amplitude loss 0.02667  (10.1s)
+  S iter   5  rel. amplitude loss 0.02197  (10.8s)
+  S iter   6  rel. amplitude loss 0.01860  (10.7s)
+  S iter   7  rel. amplitude loss 0.01615  (10.0s)
+  S iter   8  rel. amplitude loss 0.01433  (10.5s)
+  S iter   9  rel. amplitude loss 0.01295  (10.6s)
+  S iter  10  rel. amplitude loss 0.01189  (11.5s)
+  S iter  11  rel. amplitude loss 0.01106  (10.5s)
+  S iter  12  rel. amplitude loss 0.01040  (10.2s)
+  S iter  13  rel. amplitude loss 0.00987  (10.9s)
+  S iter  14  rel. amplitude loss 0.00942  (11.8s)
+  S iter  15  rel. amplitude loss 0.00905  (11.0s)
+  S iter  16  rel. amplitude loss 0.00874  (11.7s)
+  S iter  17  rel. amplitude loss 0.00847  (10.7s)
+  S iter  18  rel. amplitude loss 0.00824  (11.5s)
+  S iter  19  rel. amplitude loss 0.00803  (11.7s)
+  S iter  20  rel. amplitude loss 0.00785  (10.5s)
+  S iter  21  rel. amplitude loss 0.00769  (10.9s)
+  S iter  22  rel. amplitude loss 0.00754  (10.7s)
+  S iter  23  rel. amplitude loss 0.00741  (10.8s)
+  S iter  24  rel. amplitude loss 0.00729  (11.3s)
+  S iter  25  rel. amplitude loss 0.00718  (10.4s)
+  S iter  26  rel. amplitude loss 0.00708  (11.0s)
+  S iter  27  rel. amplitude loss 0.00698  (10.4s)
+  S iter  28  rel. amplitude loss 0.00689  (10.7s)
+  S iter  29  rel. amplitude loss 0.00681  (10.4s)
+  S iter  30  rel. amplitude loss 0.00656  (10.9s)
+  S iter  31  rel. amplitude loss 0.00654  (11.5s)
+  S iter  32  rel. amplitude loss 0.00651  (11.1s)
+-> loss 0.00651, depth err 3.5 A, probe err [0. 0. 0.], S err 0.266 (z_out 0), runtime 348s, peak 1537 MB

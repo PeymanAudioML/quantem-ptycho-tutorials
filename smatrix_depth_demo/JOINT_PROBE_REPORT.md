@@ -160,10 +160,12 @@ clip 1, 34 % of patterns per probe step, trainable C10, C12a, C12b on datasets 1
 et al. (Sec. III.A, Eq. 24) report that S-matrix retrieval needs O ≳ 4; none of the geometries reaches it, the
 existing 0.8 Å-step data are an order of magnitude below.
 
-Statistics: `reduced_s2/B`, `reduced_s4/B` have 5 noise realisations, `reduced_s2/A` 3, `B_bf` 2, everything else 1
+Statistics: `reduced_s2/B`, `reduced_s4/B` have 5 noise realisations, `reduced_s2/A` 3, `B_bf` and the two lower-dose groups 2, everything else 1
 (full-size runs take 6–8 min each, `reduced_s1` 25–35 min). Std over noise seeds is tiny at 2·10⁵ e⁻/pattern
 (the reconstructions are limited by sampling and model, not by shot noise); single-seed numbers must therefore be
-read with the systematic effects below in mind, not with a noise error bar. Complete table:
+read with the systematic effects below in mind, not with a noise error bar. The `reduced_s2/B` seed-0 runs were
+repeated after the main queue (`run_joint_followup.sh`) to store S-beam samples; runtimes vary with machine load
+(other jobs ran concurrently at times). Complete table:
 `results_joint/summary_table.md`; figures: `results_joint/figures/`.
 
 ### 5.1 Probe recovery (Experiment B)
@@ -270,13 +272,27 @@ investigated). Terzoudis-Lumsden et al. argue
 that dark-field scattering carries additional depth information for strong scatterers; this sample does not test that
 regime, so **no conclusion about the value of DF for depth sectioning should be drawn from this experiment**.
 
-<!-- DOSE -->
+### 5.5 Dose sensitivity
+
+`reduced_s2/B` at 2·10³, 2·10⁴ and 2·10⁵ e⁻/pattern (n = 2, 2, 5; `dose_sensitivity.png`).
+
+| dose (e⁻/pattern) | joint: fraction recovered | joint: probe error | depth error fixed / joint / oracle (Å) | S NRMSE oracle |
+|---|---|---|---|---|
+| 2·10⁵ | 0.83 ± 0.00 | 0.091 ± 0.003 | 5.1 / 3.4 / 3.4 | 0.258 |
+| 2·10⁴ | 0.80 ± 0.00 | 0.118 ± 0.004 | 5.1 / 2.6 ± 0.8 / 3.4 | 0.261 |
+| 2·10³ | 0.33 ± 0.01 | 0.366 ± 0.003 | 5.1 / 5.1 / 3.4 | 0.332 |
+
+Probe recovery is essentially dose-independent down to 2·10⁴ e⁻/pattern and degrades strongly at 2·10³ (one third of
+the injected error recovered); at that dose the joint depth result falls back to the fixed-probe result. The 2.6 Å
+joint value at 2·10⁴ is one seed landing one plateau step below the oracle (1.8 Å) — not an improvement over the
+oracle. Higher-dose behaviour is limited by sampling (§5.1), not by noise.
+
 
 ### 5.6 Experiment A (known probe) and runtime / memory
 
 | | runtime (s) | peak memory (MB) ⁴ |
 |---|---|---|
-| reduced_s2 fixed / joint (n=5) | 318 ± 81 / 363 ± 21 | 1463 / 1537 |
+| reduced_s2 fixed / joint (n=5) | 310 ± 67 / 396 ± 65 | 1463 / 1537 |
 | reduced_s1 fixed / joint | 1472 / 2030 | 1360 / 1691 |
 | full size (192², 625 positions) fixed / joint | 340–353 / 412–463 | 1220–1242 / 2377–2406 |
 
@@ -288,6 +304,19 @@ the joint coefficients stay within 0.2–0.4 Å of the truth. On `layers3` A see
 executed in the order fixed → joint → oracle, so for the joint and oracle runs the number is an upper bound that
 includes the earlier runs. The full-size joint runs need roughly 2.4 GB (autograd buffers of the probe minibatches);
 fixed-probe runs ≈ 1.2 GB. On CUDA `torch.cuda.max_memory_allocated` is recorded instead.
+
+### 5.7 Figure index (`results_joint/figures/`)
+
+| figure | content |
+|---|---|
+| `depth_probe_summary.png` | depth error, probe error and final loss, fixed / joint / oracle, all groups |
+| `aberrations_truth_vs_recovered.png` | injected vs recovered relative C10, C12a, C12b (datasets 1, 2) |
+| `loss_coeffs_<group>.png` | loss vs S iteration; ΔC10 and ΔC12 trajectories for every joint seed with the truth |
+| `probe_<group>.png` | aberration phase on the aperture (injected, recovered, residual) and real-space probe profile |
+| `smatrix_<group>.png` | four S beams over the scan region: truth, fixed, joint, oracle (per-beam phase aligned) |
+| `sections_<group>.png` | depth sections at the true layer depths: fixed (before refinement), joint (after), oracle |
+| `axial_<group>.png` | axial response (correlation of each section with each true layer vs depth) |
+| `dose_sensitivity.png` | §5.5 |
 
 ## 6. Gauge ambiguities
 
@@ -335,6 +364,7 @@ fixed-probe runs ≈ 1.2 GB. On CUDA `torch.cuda.max_memory_allocated` is record
   and gradient-checked (autograd = finite differences = Eq. 22 adjoint).
 * Relative defocus/astigmatism errors between datasets are recovered to ≈ 85 % (residual ≈ 4 Å ΔC10) when the scan
   step is ≤ 0.4 Å, and only to 15–26 % at the existing 0.8 Å step, where S absorbs the probe error.
+* Recovery is dose-robust down to 2·10⁴ e⁻/pattern and fails largely at 2·10³ (33 % recovered).
 * A common aberration of all datasets is not identifiable and appears as an absolute depth offset.
 * Probe refinement corrects layer *placement* by up to one 5 Å plateau step where the probe is recovered; it does not
   change the axial resolution (FWHM ≈ 105 Å) or the cross-talk. No improvement in depth resolution is claimed.
