@@ -48,10 +48,13 @@ def sample(name):
         return dict(geom=g, ops=jp.ops_slices(d["layers"], cfg["dz"]), thick=cfg["thickness"], defoci=cfg["defoci"],
                     kind="slabs", slices=d["layers"], dz=cfg["dz"])
     if name.startswith("sep"):
-        # two-layer axial-resolution benchmark: the SAME atom pattern in two layers at 150 -/+ sep/2 (sep = 0: one layer)
-        # sep{sep}[_s{step}], e.g. sep40_s2.  Reduced geometry (128^2 grid, 10.4 A field of view).
+        # two-layer axial-resolution benchmark: the SAME atom pattern in two layers at 150 -/+ sep/2.
+        # sep{sep}[x{mult}][_s{step}], e.g. sep40_s2.  sep = 0 is the coincident control: one layer at 150 A carrying
+        # mult copies of the pattern phase (default 2 = same total scattering as the two-layer samples; x1 = one copy,
+        # the single-layer response used for the superposition check).  Reduced geometry (128^2 grid, 10.4 A field).
         body = name[3:]
-        sep = float(body.split("_s")[0]); step = int(body.split("_s")[1]) if "_s" in body else 2
+        head = body.split("_s")[0]; step = int(body.split("_s")[1]) if "_s" in body else 2
+        sep = float(head.split("x")[0]); mult = float(head.split("x")[1]) if "x" in head else (2.0 if sep == 0 else 1.0)
         g = jp.Geometry(M=2, nscan=52 // step, step=step)
         rng = np.random.default_rng(7)
         c = g.Y * g.dr / 2
@@ -60,9 +63,10 @@ def sample(name):
         for p in c + rng.uniform(-4.0, 4.0, (10, 2)):
             pat += 0.6 * np.exp(-((yy - p[0]) ** 2 + (xx - p[1]) ** 2) / (2 * 0.45 ** 2))
         lz = [150.0] if sep == 0 else [150.0 - sep / 2, 150.0 + sep / 2]
-        layers = np.array([pat] * len(lz))
+        layers = np.array([mult * pat] * len(lz))
         return dict(geom=g, ops=jp.ops_layers(layers, lz, 300.0, g), thick=300.0, defoci=[-200.0, -100.0, 0.0],
-                    kind="layers", layers=layers, layer_z=lz, pattern=pat, sep=sep, depth_step=2.5)
+                    kind="layers", layers=layers, layer_z=lz, pattern=pat, sep=sep, mult=mult, depth_step=2.5,
+                    skip_true_S=True)
     if name.startswith("reduced"):
         step = int(name.split("_s")[1]) if "_s" in name else 4        # scan step in pixels (0.2 A each)
         g = jp.Geometry(M=2, nscan=52 // step, step=step)            # same ~10.4 A field of view for every step
@@ -170,7 +174,7 @@ def run_one(sname, config, variant, seed, sch_kw, dose, trainable, tag="", devic
     rec = jp.JointReconstructor(meas, g, probe, sch, device=device, log=print)
     S_dev = rec.run()
     depths = np.arange(0.0, s["thick"] + 1e-6, s.get("depth_step", 10.0))
-    ev, ph = evaluate(S_dev, probe, s, true, sname, depths, device=device)
+    ev, ph = evaluate(S_dev, probe, s, true, sname, depths, device=device, with_S_error=not s.get("skip_true_S"))
     S = S_dev.detach().cpu().numpy()
     res = dict(sample=sname, config=config, variant=variant, seed=seed, dose=dose, trainable=trainable,
                nominal=nominal.tolist(), names=NAMES, summary=rec.summary(), history=rec.history, eval=ev)
@@ -183,13 +187,15 @@ def run_one(sname, config, variant, seed, sch_kw, dose, trainable, tag="", devic
     by, bx = g.beams()
     sel = [int(np.argmin(by ** 2 + bx ** 2))] + [int(np.argmin((by - a) ** 2 + (bx - b) ** 2)) for a, b in ((6, 0), (0, -9), (8, 8))]
     cr = g.crop()
-    St = np.asarray(get_true_S(sname))
-    np.savez_compressed(base + "_beams.npz", beams=np.array(sel), by=by[sel], bx=bx[sel],
-                        S_rec=S[sel][(slice(None),) + cr], S_true=St[sel][(slice(None),) + cr])
+    if not s.get("skip_true_S"):                  # benchmark samples skip the (costly) ground-truth S
+        St = np.asarray(get_true_S(sname))
+        np.savez_compressed(base + "_beams.npz", beams=np.array(sel), by=by[sel], bx=bx[sel],
+                            S_rec=S[sel][(slice(None),) + cr], S_true=St[sel][(slice(None),) + cr])
     dm = ev["depth"]
     key = "mean_abs_depth_err" if "mean_abs_depth_err" in dm else "mean_depth_err"
     print(f"-> loss {rec.final_eval['rel_amplitude_loss']:.5f}, depth err {dm[key]:.1f} A, probe err {np.round(ev['probe_wavefunction_error'], 3)}, "
-          f"S err {ev['S_error']['nrmse']:.3f} (z_out {ev['S_error']['z_out']:.0f}), runtime {rec.runtime:.0f}s, peak {rec.peak_mb:.0f} MB",
+          + (f"S err {ev['S_error']['nrmse']:.3f} (z_out {ev['S_error']['z_out']:.0f}), " if "S_error" in ev else "")
+          + f"runtime {rec.runtime:.0f}s, peak {rec.peak_mb:.0f} MB",
           flush=True)
     return res
 
