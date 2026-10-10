@@ -318,6 +318,25 @@ fixed-probe runs ≈ 1.2 GB. On CUDA `torch.cuda.max_memory_allocated` is record
 | `axial_<group>.png` | axial response (correlation of each section with each true layer vs depth) |
 | `dose_sensitivity.png` | §5.5 |
 
+### 5.8 Polycrystal at a 0.4 Å scan step (after the code review)
+
+`poly_s2`, config B, joint only, one seed (fixed and oracle at 0.4 Å were not run; 23 min on 4 CPU cores):
+
+| | 0.8 Å joint | **0.4 Å joint** | 0.8 Å oracle |
+|---|---|---|---|
+| fraction of injected aberration recovered | 0.54 | **0.84** | 1 |
+| probe-wavefunction error d1 / d2 | 0.299 / 0.249 | **0.117 / 0.059** | 0 |
+| residual ΔC10 d1 / d2 (Å) | −10.6 / +5.5 | **−3.6 / −2.1** | 0 |
+| section–slab correlation (diagonal r) | 0.72 | **0.78** | 0.74 |
+| selectivity | 0.58 | **0.64** | 0.61 |
+| sections within 10 Å of their slab | 0.75 | **0.81** | 0.81 |
+| S NRMSE | 0.875 | **0.792** | 0.868 |
+
+The probe recovery follows the oversampling trend of §5.1. The depth metrics improve too, but without fixed/oracle
+reconstructions at 0.4 Å it is not possible to say how much of that comes from the better probe and how much from the
+denser data alone. The final losses (0.058 vs 0.014) are not comparable: different data, and the 0.4 Å value is the
+loss of the returned state (§9) while the 0.8 Å value is the older last-sweep estimate.
+
 ## 6. Gauge ambiguities
 
 1. **Common probe phase ↔ S (Pelz Sec. II.F):** Ψ_{d,b} S_b only enters as a product, so any phase pattern shared by
@@ -368,3 +387,20 @@ fixed-probe runs ≈ 1.2 GB. On CUDA `torch.cuda.max_memory_allocated` is record
 * A common aberration of all datasets is not identifiable and appears as an absolute depth offset.
 * Probe refinement corrects layer *placement* by up to one 5 Å plateau step where the probe is recovered; it does not
   change the axial resolution (FWHM ≈ 105 Å) or the cross-talk. No improvement in depth resolution is claimed.
+
+## 9. Revision after code review
+
+* One device (`--device auto|cpu|cuda`) is threaded through data, probe, S and depth sections; results are exported
+  with `.cpu()`. A CUDA-vs-CPU test exists but is skipped here (no GPU), so CUDA is still unverified.
+* `final_loss` is the loss of the returned S and final probe (evaluated after the last update); the per-sweep running
+  value is kept as `last_sweep_loss`. Runs in §5.1–5.6 predate this fix and report the last-sweep value.
+* Peak memory is per run (CUDA peak reset; CPU RSS sampled in a thread); §5.6 numbers are process maxima.
+* Axial FWHM: contiguous main peak with interpolated half-maximum crossings and a lower-bound flag. Recomputed from the
+  stored curves, the layered-sample widths are 110–114 Å (not 103–107 Å); two of three layers touch the depth-range end,
+  so those widths are lower bounds. None of the 216 stored curves had a disconnected half-maximum region.
+* The S residual is `s_residual()`; the Poisson residual is scaled by ½ so that MU means the same for both losses.
+  New tests: residual = Wirtinger gradient (amplitude/Poisson, with/without BF mask), one S sweep = preconditioned
+  autograd gradient step in all four cases, the Poisson intensity floor changes only the clamped pixels (the test
+  problem has one such pixel), final loss = loss of the returned state, FWHM metric. 24 tests pass, 1 skipped (CUDA).
+* Two-layer separation benchmark (`run_separation.py`): implemented, but cancelled after the first run to save time;
+  no separation result is reported.
