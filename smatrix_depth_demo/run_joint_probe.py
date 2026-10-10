@@ -39,10 +39,12 @@ def sample(name):
         g = jp.STANDARD
         return dict(geom=g, ops=jp.ops_layers(d["layers"], cfg["layer_z"], 300.0, g), thick=300.0,
                     defoci=[-200.0, -100.0, 0.0], kind="layers", layers=d["layers"], layer_z=cfg["layer_z"])
-    if name == "poly":
+    if name == "poly" or name.startswith("poly_s"):
+        # poly = existing 0.8 A scan step; poly_s{n}: same 20 A scan field with an n-pixel (0.2 A each) step
         rd = os.path.join(HERE, "results_poly")
         d = np.load(os.path.join(rd, "layers_and_data.npz")); cfg = json.load(open(os.path.join(rd, "config.json")))
-        g = jp.STANDARD
+        step = int(name.split("_s")[1]) if "_s" in name else 4
+        g = jp.STANDARD if step == 4 else jp.Geometry(nscan=100 // step, step=step)
         return dict(geom=g, ops=jp.ops_slices(d["layers"], cfg["dz"]), thick=cfg["thickness"], defoci=cfg["defoci"],
                     kind="slabs", slices=d["layers"], dz=cfg["dz"])
     if name.startswith("sep"):
