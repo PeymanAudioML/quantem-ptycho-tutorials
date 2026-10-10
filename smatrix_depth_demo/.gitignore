@@ -10,3 +10,4 @@ results_authors/authors_full_sections.npz
 results_authors/S_authors_mu1_poly.npy
 results_authors/authors_full_sections_poly.npz
 results_joint/cache/
+results_joint/logs/   # live logs while experiments run; final copies are force-added
