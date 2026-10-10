@@ -262,11 +262,29 @@ def fig_depth_bars(rows):
     fig.tight_layout(); fig.savefig(os.path.join(FIG, "depth_probe_summary.png")); plt.close(fig)
 
 
+def fig_dose(rows):
+    doses = [(2e5, "reduced_s2/B"), (2e4, "reduced_s2/B_dose2e4"), (2e3, "reduced_s2/B_dose2e3")]
+    if not any(r["group"] == doses[-1][1] for r in rows):
+        return
+    fig, ax = plt.subplots(1, 3, figsize=(12, 3.4))
+    for a, (k, t) in zip(ax, [("depth_err", "mean depth error (Å)"), ("frac_recovered", "fraction of injected aberration recovered"),
+                              ("probe_err", "probe-wavefunction error (d1,d2)")]):
+        for v in VAR:
+            pts = [(d, r[k]) for d, gname in doses for r in rows if r["group"] == gname and r["variant"] == v and k in r]
+            if pts:
+                a.errorbar([p[0] for p in pts], [p[1][0] for p in pts], yerr=[p[1][1] for p in pts], marker="o", color=COL[v], label=v, capsize=2)
+        a.set_xscale("log"); a.set_xlabel("dose (e⁻ / pattern)"); a.set_title(t, fontsize=9); a.grid(alpha=0.3)
+    ax[0].legend(fontsize=7)
+    fig.suptitle("reduced_s2, config B: dose sensitivity (mean ± std over noise seeds)", fontsize=9)
+    fig.tight_layout(); fig.savefig(os.path.join(FIG, "dose_sensitivity.png")); plt.close(fig)
+
+
 if __name__ == "__main__":
     runs = [r for r in load_all() if os.environ.get("JOINT_INCLUDE_TUNE") or "_tune" not in r["_group"]]
     rows = table(runs)
     write_tables(rows)
     fig_depth_bars(rows)
+    fig_dose(rows)
     groups = sorted({r["_group"] for r in runs})
     fig_coeff_bars(runs, [g for g in groups if g.endswith("/B")])
     for g in groups:
