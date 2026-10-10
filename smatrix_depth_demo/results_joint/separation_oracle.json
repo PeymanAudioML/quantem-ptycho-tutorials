@@ -1,0 +1,206 @@
+[
+ {
+  "dz": 20.0,
+  "seed": 0,
+  "classify": {
+   "n_maxima": 1,
+   "two_peaks": false,
+   "localised": false,
+   "rayleigh": false,
+   "valley_ratio": null,
+   "peak_z": [
+    150.0
+   ]
+  },
+  "control": {
+   "n_maxima": 1,
+   "two_peaks": false,
+   "localised": false,
+   "rayleigh": false,
+   "valley_ratio": null,
+   "peak_z": [
+    150.0
+   ]
+  },
+  "superposition_rel_err": 0.011427874065435361,
+  "superposition_classify": {
+   "n_maxima": 1,
+   "two_peaks": false,
+   "localised": false,
+   "rayleigh": false,
+   "valley_ratio": null,
+   "peak_z": [
+    150.0
+   ]
+  },
+  "fit": {
+   "z1_one": 150.0,
+   "dz_fit": 55.0,
+   "z_fit": [
+    95.0,
+    150.0
+   ],
+   "dBIC": 141.9273366455402,
+   "ci": [
+    48.0,
+    62.0
+   ],
+   "rss1": 0.002008866256149839,
+   "rss2": 0.00047579638780400783,
+   "n": 105
+  },
+  "control_fit": {
+   "z1_one": 150.0,
+   "dz_fit": 5.0,
+   "z_fit": [
+    157.0,
+    162.0
+   ],
+   "dBIC": 117.67261382279048,
+   "ci": [
+    1.0,
+    5.0
+   ],
+   "rss1": 0.0020816934317548054,
+   "rss2": 0.0006211661306351352,
+   "n": 105
+  },
+  "outcome": "not resolved"
+ },
+ {
+  "dz": 40.0,
+  "seed": 0,
+  "classify": {
+   "n_maxima": 1,
+   "two_peaks": false,
+   "localised": false,
+   "rayleigh": false,
+   "valley_ratio": null,
+   "peak_z": [
+    150.0
+   ]
+  },
+  "control": {
+   "n_maxima": 1,
+   "two_peaks": false,
+   "localised": false,
+   "rayleigh": false,
+   "valley_ratio": null,
+   "peak_z": [
+    150.0
+   ]
+  },
+  "superposition_rel_err": 0.009078099600181806,
+  "superposition_classify": {
+   "n_maxima": 1,
+   "two_peaks": false,
+   "localised": false,
+   "rayleigh": false,
+   "valley_ratio": null,
+   "peak_z": [
+    150.0
+   ]
+  },
+  "fit": {
+   "z1_one": 150.0,
+   "dz_fit": 39.0,
+   "z_fit": [
+    134.0,
+    173.0
+   ],
+   "dBIC": 426.63296490483935,
+   "ci": [
+    39.0,
+    39.0
+   ],
+   "rss1": 0.013516206615149677,
+   "rss2": 0.00021268810063464699,
+   "n": 105
+  },
+  "control_fit": {
+   "z1_one": 150.0,
+   "dz_fit": 5.0,
+   "z_fit": [
+    157.0,
+    162.0
+   ],
+   "dBIC": 117.67261382279048,
+   "ci": [
+    1.0,
+    5.0
+   ],
+   "rss1": 0.0020816934317548054,
+   "rss2": 0.0006211661306351352,
+   "n": 105
+  },
+  "outcome": "model-fittable"
+ },
+ {
+  "dz": 60.0,
+  "seed": 0,
+  "classify": {
+   "n_maxima": 1,
+   "two_peaks": false,
+   "localised": false,
+   "rayleigh": false,
+   "valley_ratio": null,
+   "peak_z": [
+    147.5
+   ]
+  },
+  "control": {
+   "n_maxima": 1,
+   "two_peaks": false,
+   "localised": false,
+   "rayleigh": false,
+   "valley_ratio": null,
+   "peak_z": [
+    150.0
+   ]
+  },
+  "superposition_rel_err": 0.019822946033257047,
+  "superposition_classify": {
+   "n_maxima": 1,
+   "two_peaks": false,
+   "localised": false,
+   "rayleigh": false,
+   "valley_ratio": null,
+   "peak_z": [
+    150.0
+   ]
+  },
+  "fit": {
+   "z1_one": 149.0,
+   "dz_fit": 59.0,
+   "z_fit": [
+    122.0,
+    181.0
+   ],
+   "dBIC": 563.6339044243284,
+   "ci": [
+    59.0,
+    59.0
+   ],
+   "rss1": 0.059533268161307246,
+   "rss2": 0.00025409335867609256,
+   "n": 105
+  },
+  "control_fit": {
+   "z1_one": 150.0,
+   "dz_fit": 5.0,
+   "z_fit": [
+    157.0,
+    162.0
+   ],
+   "dBIC": 117.67261382279048,
+   "ci": [
+    1.0,
+    5.0
+   ],
+   "rss1": 0.0020816934317548054,
+   "rss2": 0.0006211661306351352,
+   "n": 105
+  },
+  "outcome": "model-fittable"
+ }
+]

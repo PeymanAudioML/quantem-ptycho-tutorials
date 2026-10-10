@@ -402,5 +402,39 @@ loss of the returned state (§9) while the 0.8 Å value is the older last-sweep 
   New tests: residual = Wirtinger gradient (amplitude/Poisson, with/without BF mask), one S sweep = preconditioned
   autograd gradient step in all four cases, the Poisson intensity floor changes only the clamped pixels (the test
   problem has one such pixel), final loss = loss of the returned state, FWHM metric. 24 tests pass, 1 skipped (CUDA).
-* Two-layer separation benchmark (`run_separation.py`): implemented, but cancelled after the first run to save time;
-  no separation result is reported.
+* Two-layer separation benchmark: see §10 (oracle-probe pilot).
+
+## 10. Two-layer axial-resolution pilot (true probe, one seed)
+
+Two layers with the **same** atom pattern at z = 150 ∓ Δz/2 in a 300 Å slab, independent multislice data, 0.4 Å scan
+step, 2·10⁵ e⁻/pattern, sections every 2.5 Å, **true probe** (so probe estimation cannot affect the result). Controls:
+one layer at 150 Å with twice the pattern phase (matched total scattering) and one with the single pattern phase
+(template). Signal: projection of the section phase onto the pattern (linear, fixed normalisation). Decision rules were
+fixed before running (see the `run_separation.py` docstring). Files: `results_joint/separation_oracle.{md,json}`,
+`figures/separation_oracle.png`. Run time 41 min (5 reconstructions).
+
+| Δz (Å) | prominent maxima | localised & Rayleigh (valley ≤ 0.81) | superposition rel. error | two-layer fit Δz (Å) | outcome (pilot) |
+|---|---|---|---|---|---|
+| 20 | 1 (at 150.0) | no | 0.011 | 55 | **not resolved** |
+| 40 | 1 (at 150.0) | no | 0.009 | 39 | not resolved by peaks; **model-fittable** |
+| 60 | 1 (at 147.5) | no | 0.020 | 59 | not resolved by peaks; **model-fittable** |
+
+Controls: single-layer response peaks at 150.0 Å with FWHM 118 Å; the double-strength control equals twice the
+single-layer response to 1.8 % (the depth response is linear in the layer phase); the control is never detected as
+two layers.
+
+Interpretation:
+
+* **None of the separations is resolved.** At 20, 40 and 60 Å the depth response has a single maximum. This is fully
+  explained by the single-layer response: adding two copies shifted by ±Δz/2 reproduces the measured curves to 1–2 %,
+  and that superposition itself has a single peak. With a ≈ 118 Å wide axial response, two-peak separation would need
+  layers roughly that far apart (on synthetic curves with this width the same rules first succeed between 60 and 160 Å;
+  that range was not tested on reconstructions).
+* **Model fitting recovers 40 and 60 Å (39 and 59 Å) but not 20 Å (fitted 55 Å).** This uses the broadening of the
+  single peak and is only possible because the noise in the depth response is tiny at this dose and the single-layer
+  template is known exactly from the same pipeline. It answers "given exactly two identical layers, how far apart are
+  they?", not "are there two layers?" — the BIC is unreliable here (the single-layer control also prefers two layers,
+  ΔBIC = 118), so only the accuracy of the fitted separation is used, after calibration against the control.
+* Pilot status: one noise seed. Before calling 40/60 Å model-fittable, repeat the controls and those separations with
+  two more seeds; for a realistic test the template should come from an independent calibration, not from the same
+  simulation. The fixed and joint probe variants were deliberately not run.
