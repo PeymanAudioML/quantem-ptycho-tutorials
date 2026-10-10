@@ -139,7 +139,7 @@ def beam_list():
     return ny[m], nx[m]
 
 
-def reconstruct(dps, coords, log):
+def reconstruct(dps, coords, log, S_init=None):
     ndf = dps.shape[0]
     by, bx = beam_list()
     nb = len(by)
@@ -151,6 +151,8 @@ def reconstruct(dps, coords, log):
     iy = np.arange(Y)[None, :] * DR
     Sm = (np.exp(2j * np.pi * kby[:, None] * iy)[:, :, None]
           * np.exp(2j * np.pi * kbx[:, None] * iy)[:, None, :]).astype(np.complex64)
+    if S_init is not None:                     # optional start point (regression tests); default unchanged
+        Sm = np.array(S_init, dtype=np.complex64, copy=True)
 
     pats, cc, ids = [], [], []
     for idf in range(ndf):
