@@ -198,3 +198,17 @@ Same caveat: my copies of their two files are not byte-identical to the manifest
 Their sections and mine correlate 0.98–0.99 at every depth. My-forward-model amplitude loss over all 1875 patterns:
 vacuum start 0.427, authors' final S 0.0131, my final S 0.0129 (the log line in the script says "25 it"; the polycrystal
 run used 30). Figure: `results_authors/fig_authors_vs_mine_poly.png`. One structure, one noise draw.
+
+## Joint S-matrix + probe-aberration reconstruction (PyTorch; `JOINT_PROBE_REPORT.md`)
+PyTorch extension following Pelz et al., PRR 3, 023159 (2021): Eq. 23 aberration probe (`probe_aberrations.py`),
+alternating S / probe updates as in their Algorithm 1 (`joint_smatrix_probe.py`), experiments (`run_joint_probe.py`,
+`run_all_joint.sh`), figures (`make_joint_figs.py`, `results_joint/figures/`) and 12 tests (`tests/test_joint_probe.py`:
+Eq. 23, bitwise simulator regression, PyTorch = NumPy S update, autograd vs finite-difference / adjoint gradients).
+The existing NumPy code and experiments are unchanged (only an optional `S_init` argument was added).
+
+Main results (simulated data, details and caveats in the report):
+* relative defocus / astigmatism errors between the defocus datasets are recovered to ≈ 85 % at 0.2–0.4 Å scan
+  steps, but only 15–26 % at the existing 0.8 Å step, where the data undersample S (Pelz's oversampling criterion);
+* an aberration common to all datasets (incl. the reference) is not identifiable and becomes an absolute depth offset;
+* probe refinement corrects layer placement by ≤ 5 Å where the probe is recovered, but does not change the axial
+  resolution (≈ 105 Å FWHM) or the cross-talk — no depth-resolution improvement is claimed.

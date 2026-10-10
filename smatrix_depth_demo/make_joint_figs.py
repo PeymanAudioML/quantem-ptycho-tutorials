@@ -125,15 +125,18 @@ def fig_coeff_bars(runs, groups):
         return
     labs = ["d1 C10", "d1 C12a", "d1 C12b", "d2 C10", "d2 C12a", "d2 C12b"]
     idx = [(1, 0), (1, 1), (1, 2), (2, 0), (2, 1), (2, 2)]
-    fig, ax = plt.subplots(1, len(groups), figsize=(4.2 * len(groups), 3.4), squeeze=False)
-    for a, g in zip(ax[0], groups):
+    nc = min(3, len(groups)); nr = math.ceil(len(groups) / nc)
+    fig, ax = plt.subplots(nr, nc, figsize=(4.4 * nc, 3.4 * nr), squeeze=False)
+    for a in ax.ravel()[len(groups):]:
+        a.axis("off")
+    for a, g in zip(ax.ravel(), groups):
         rj = pick(runs, g, "joint"); nom = np.array(rj[0]["nominal"]); true = np.array(rj[0]["eval"]["coeff_true"])
         est = np.array([np.array(r["eval"]["coeff_est"]) for r in rj])
         x = np.arange(len(idx))
         a.bar(x - 0.2, [true[d, j] - nom[d, j] for d, j in idx], 0.4, color="k", label="injected (truth)")
         a.bar(x + 0.2, [np.mean(est[:, d, j] - nom[d, j]) for d, j in idx], 0.4, color=COL["joint"],
-              yerr=[np.std(est[:, d, j]) for d, j in idx], capsize=2, label=f"joint (n={len(rj)})")
-        a.set_xticks(x); a.set_xticklabels(labs, rotation=45, fontsize=7); a.set_title(g, fontsize=9); a.grid(axis="y", alpha=0.3)
+              yerr=[np.std(est[:, d, j]) for d, j in idx], capsize=2, label="joint (mean ± std)")
+        a.set_xticks(x); a.set_xticklabels(labs, rotation=45, fontsize=7); a.set_title(f"{g} (n={len(rj)})", fontsize=9); a.grid(axis="y", alpha=0.3)
         a.axhline(0, color="k", lw=0.5)
     ax[0, 0].set_ylabel("relative aberration (Å)"); ax[0, 0].legend(fontsize=7)
     fig.suptitle("Ground-truth vs recovered relative probe aberrations (reference dataset d0 fixed)")
@@ -219,7 +222,7 @@ def fig_sections(runs, group, zs=None):
             im = d["phase"][iz]; ax[i, j].imshow(im - np.median(im), cmap="gray")
             ax[i, j].set_title(f"{v}: z={d['depths'][iz]:.0f}, r={jp.corr(im, t):+.2f}", fontsize=8)
     for a in ax.ravel(): a.set_xticks([]); a.set_yticks([])
-    fig.suptitle(f"{group}, seed 0: depth sections at the true depths (fixed = miscalibrated probe)", fontsize=9)
+    fig.suptitle(f"{group}, seed 0: depth sections at the true depths (fixed = nominal miscalibrated probe, i.e. before probe refinement; joint = after)", fontsize=9)
     fig.tight_layout(); fig.savefig(os.path.join(FIG, f"sections_{group.replace('/', '_')}.png")); plt.close(fig)
 
 
