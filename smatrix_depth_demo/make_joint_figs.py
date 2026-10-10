@@ -38,8 +38,12 @@ def scalar_metrics(r):
                dC10_d1=float(est[1, 0] - true[1, 0]), dC10_d2=float(est[2, 0] - true[2, 0]),
                S_err=ev["S_error"]["nrmse"], runtime=r["summary"]["runtime_s"], peak_mb=r["summary"]["peak_memory_mb"])
     if "mean_abs_depth_err" in dm:
-        out.update(depth_err=dm["mean_abs_depth_err"], mean_r=dm["mean_r"], fwhm=dm["mean_fwhm"], crosstalk=dm["mean_crosstalk"],
-                   resolved=dm["n_resolved"])
+        # FWHM recomputed from the stored axial curves with the corrected metric (contiguous main peak, interpolated
+        # half-maximum crossings); runs made before the fix stored the first/last-above-half width on the 10 A grid
+        C = np.abs(np.array(dm["curves"])); z = np.arange(C.shape[0]) * 10.0
+        w = [jp.axial_fwhm(z, C[:, j]) for j in range(C.shape[1])]
+        out.update(depth_err=dm["mean_abs_depth_err"], mean_r=dm["mean_r"], fwhm=float(np.mean([x[0] for x in w])),
+                   fwhm_open=float(sum(x[1] for x in w)), crosstalk=dm["mean_crosstalk"], resolved=dm["n_resolved"])
     else:
         out.update(depth_err=dm["mean_depth_err"], mean_r=dm["mean_diag_r"], selectivity=dm["selectivity"])
     return out
@@ -67,13 +71,16 @@ def fmt(ms, k, p=1):
 def write_tables(rows):
     if os.environ.get("JOINT_FIG_DIR"):
         return
-    lines = ["| group | variant | n | final loss | depth err (Å) | mean r | axial FWHM (Å) | cross-talk | probe err (d1,d2 mean) | "
+    lines = ["| group | variant | n | final loss | depth err (Å) | mean r | axial FWHM (Å) ¹ | cross-talk | probe err (d1,d2 mean) | "
              "coef. residual / injected (Å) | fraction recovered | ΔC10 d1 / d2 (Å) | S NRMSE | runtime (s) | peak MB |",
              "|" + "---|" * 16]
     for r in rows:
         lines.append(f"| {r['group']} | {r['variant']} | {r['n']} | {fmt(r,'final_loss',5)} | {fmt(r,'depth_err')} | {fmt(r,'mean_r',2)} | "
                      f"{fmt(r,'fwhm',0)} | {fmt(r,'crosstalk',2)} | {fmt(r,'probe_err',3)} | {fmt(r,'coeff_resid')} / {fmt(r,'coeff_injected')} | "
                      f"{fmt(r,'frac_recovered',2)} | {fmt(r,'dC10_d1')} / {fmt(r,'dC10_d2')} | {fmt(r,'S_err',3)} | {fmt(r,'runtime',0)} | {fmt(r,'peak_mb',0)} |")
+    lines.append("\n¹ mean over layers of the contiguous main-peak FWHM with interpolated half-maximum crossings (10 Å "
+                 "section grid); for layers whose response reaches the end of the 0–thickness depth range (e.g. 30 Å and "
+                 "270 Å in a 300 Å slab) the width is a lower bound.")
     open(os.path.join(OUT, "summary_table.md"), "w").write("\n".join(lines) + "\n")
     json.dump(rows, open(os.path.join(OUT, "summary_table.json"), "w"), indent=1)
     print("\n".join(lines))
@@ -239,7 +246,8 @@ def fig_axial(runs, group):
         for j, z in enumerate(s["layer_z"]):
             a.plot(depths, C[:, j], color=plt.cm.tab10(j), label=f"layer z={z:.0f}"); a.axvline(z, color=plt.cm.tab10(j), ls="--", alpha=0.4)
         dm = rs[v][0]["eval"]["depth"]
-        a.set_title(f"{v}: err {dm['mean_abs_depth_err']:.1f} Å, FWHM {dm['mean_fwhm']:.0f} Å, cross-talk {dm['mean_crosstalk']:.2f}", fontsize=8)
+        fw = np.mean([jp.axial_fwhm(depths, np.abs(C[:, j]))[0] for j in range(C.shape[1])])
+        a.set_title(f"{v}: err {dm['mean_abs_depth_err']:.1f} Å, FWHM {fw:.0f} Å, cross-talk {dm['mean_crosstalk']:.2f}", fontsize=8)
         a.set_xlabel("section depth z (Å)"); a.grid(alpha=0.3)
     ax[0].set_ylabel("correlation with true layer"); ax[0].legend(fontsize=7)
     fig.suptitle(f"{group}, seed 0: axial response (correlation of each depth section with each true layer)", fontsize=9)
@@ -283,7 +291,8 @@ def fig_dose(rows):
 
 
 if __name__ == "__main__":
-    runs = [r for r in load_all() if os.environ.get("JOINT_INCLUDE_TUNE") or "_tune" not in r["_group"]]
+    runs = [r for r in load_all() if (os.environ.get("JOINT_INCLUDE_TUNE") or "_tune" not in r["_group"])
+            and not r["_group"].startswith("sep")]          # two-layer benchmark: run_separation.py analyze
     rows = table(runs)
     write_tables(rows)
     fig_depth_bars(rows)

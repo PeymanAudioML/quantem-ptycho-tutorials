@@ -45,6 +45,22 @@ def sample(name):
         g = jp.STANDARD
         return dict(geom=g, ops=jp.ops_slices(d["layers"], cfg["dz"]), thick=cfg["thickness"], defoci=cfg["defoci"],
                     kind="slabs", slices=d["layers"], dz=cfg["dz"])
+    if name.startswith("sep"):
+        # two-layer axial-resolution benchmark: the SAME atom pattern in two layers at 150 -/+ sep/2 (sep = 0: one layer)
+        # sep{sep}[_s{step}], e.g. sep40_s2.  Reduced geometry (128^2 grid, 10.4 A field of view).
+        body = name[3:]
+        sep = float(body.split("_s")[0]); step = int(body.split("_s")[1]) if "_s" in body else 2
+        g = jp.Geometry(M=2, nscan=52 // step, step=step)
+        rng = np.random.default_rng(7)
+        c = g.Y * g.dr / 2
+        yy = (np.arange(g.Y) * g.dr)[:, None]; xx = (np.arange(g.Y) * g.dr)[None, :]
+        pat = np.zeros((g.Y, g.Y))
+        for p in c + rng.uniform(-4.0, 4.0, (10, 2)):
+            pat += 0.6 * np.exp(-((yy - p[0]) ** 2 + (xx - p[1]) ** 2) / (2 * 0.45 ** 2))
+        lz = [150.0] if sep == 0 else [150.0 - sep / 2, 150.0 + sep / 2]
+        layers = np.array([pat] * len(lz))
+        return dict(geom=g, ops=jp.ops_layers(layers, lz, 300.0, g), thick=300.0, defoci=[-200.0, -100.0, 0.0],
+                    kind="layers", layers=layers, layer_z=lz, pattern=pat, sep=sep, depth_step=2.5)
     if name.startswith("reduced"):
         step = int(name.split("_s")[1]) if "_s" in name else 4        # scan step in pixels (0.2 A each)
         g = jp.Geometry(M=2, nscan=52 // step, step=step)            # same ~10.4 A field of view for every step
@@ -111,17 +127,17 @@ def get_true_S(sname):
 
 
 # --------------------------------------------------------------------------------------------- one reconstruction
-def make_probe(geom, coeffs, trainable, ref=0):
+def make_probe(geom, coeffs, trainable, ref=0, device="cpu"):
     by, bx = geom.beams()
     return pa.AberrationProbe(by / geom.LW, bx / geom.LW, geom.lam, geom.alpha, coeffs, names=NAMES,
-                              trainable=trainable, ref_index=ref, norm=1 / math.sqrt(len(by) * geom.K ** 2))
+                              trainable=trainable, ref_index=ref, norm=1 / math.sqrt(len(by) * geom.K ** 2), device=device)
 
 
-def evaluate(S, probe, s, true, sname, depths, with_S_error=True):
+def evaluate(S, probe, s, true, sname, depths, with_S_error=True, device="cpu"):
     g = s["geom"]
     cr = g.crop()
     t0 = time.time()
-    ew = jp.depth_sections_general(S, g, depths)
+    ew = jp.depth_sections_general(S, g, depths, device=device)
     ph = np.angle(ew)[(slice(None),) + cr]
     if s["kind"] == "layers":
         dm = jp.layer_metrics(ph, [L[cr] for L in s["layers"]], s["layer_z"], depths)
@@ -135,22 +151,25 @@ def evaluate(S, probe, s, true, sname, depths, with_S_error=True):
                sections_time_s=time.time() - t0)
     if with_S_error:
         St = get_true_S(sname)
-        out["S_error"] = jp.smatrix_error(S, np.asarray(St), g, z_out=np.arange(-60.0, 61.0, 10.0))
+        S_np = S.detach().cpu().numpy() if torch.is_tensor(S) else S
+        out["S_error"] = jp.smatrix_error(S_np, np.asarray(St), g, z_out=np.arange(-60.0, 61.0, 10.0))
     return out, ph
 
 
-def run_one(sname, config, variant, seed, sch_kw, dose, trainable, tag=""):
+def run_one(sname, config, variant, seed, sch_kw, dose, trainable, tag="", device="cpu"):
     s, nominal, true, dps, coords = get_data(sname, config, seed, dose)
     g = s["geom"]
-    meas = jp.Measurements.from_dps(dps, coords, dose)
+    device = jp.pick_device(device) if isinstance(device, str) else device
+    meas = jp.Measurements.from_dps(dps, coords, dose, device=device)
     init = true if variant == "oracle" else nominal
-    probe = make_probe(g, init, trainable if variant == "joint" else [])
+    probe = make_probe(g, init, trainable if variant == "joint" else [], device=device)
     sch = jp.Schedule(mode="joint" if variant == "joint" else "s_only", seed=seed, **sch_kw)
     print(f"== {sname} config {config} variant {variant} seed {seed}: {sch.n_s_iters()} S iterations", flush=True)
-    rec = jp.JointReconstructor(meas, g, probe, sch, log=print)
-    S = rec.run().numpy()
-    depths = np.arange(0.0, s["thick"] + 1, 10.0)
-    ev, ph = evaluate(S, probe, s, true, sname, depths)
+    rec = jp.JointReconstructor(meas, g, probe, sch, device=device, log=print)
+    S_dev = rec.run()
+    depths = np.arange(0.0, s["thick"] + 1e-6, s.get("depth_step", 10.0))
+    ev, ph = evaluate(S_dev, probe, s, true, sname, depths, device=device)
+    S = S_dev.detach().cpu().numpy()
     res = dict(sample=sname, config=config, variant=variant, seed=seed, dose=dose, trainable=trainable,
                nominal=nominal.tolist(), names=NAMES, summary=rec.summary(), history=rec.history, eval=ev)
     d = os.path.join(OUT, sname, config + tag)
@@ -167,7 +186,7 @@ def run_one(sname, config, variant, seed, sch_kw, dose, trainable, tag=""):
                         S_rec=S[sel][(slice(None),) + cr], S_true=St[sel][(slice(None),) + cr])
     dm = ev["depth"]
     key = "mean_abs_depth_err" if "mean_abs_depth_err" in dm else "mean_depth_err"
-    print(f"-> loss {rec.history['s_loss'][-1]:.5f}, depth err {dm[key]:.1f} A, probe err {np.round(ev['probe_wavefunction_error'], 3)}, "
+    print(f"-> loss {rec.final_eval['rel_amplitude_loss']:.5f}, depth err {dm[key]:.1f} A, probe err {np.round(ev['probe_wavefunction_error'], 3)}, "
           f"S err {ev['S_error']['nrmse']:.3f} (z_out {ev['S_error']['z_out']:.0f}), runtime {rec.runtime:.0f}s, peak {rec.peak_mb:.0f} MB",
           flush=True)
     return res
@@ -191,9 +210,10 @@ def bench():
         meas = jp.Measurements.from_dps(d["dps"], d["coords"], 2e5)
         rec = jp.JointReconstructor(meas, g, make_probe(g, nominal, []),
                                     jp.Schedule(mode="s_only", warmup_s=2, cycles=0, final_s=0, mu=60.0), S_init=S0)
-        S_t = rec.run().numpy()
+        S_t = rec.run().cpu().numpy()
         rel = float(np.linalg.norm(S_t - S_np) / np.linalg.norm(S_np - S0))
         out[start] = dict(numpy_loss=list(map(float, l_np)), torch_loss=rec.history["s_loss"], rel_S_diff=rel,
+                          torch_final_eval=rec.final_eval,
                           numpy_time_s=t_np, torch_time_s=rec.runtime, peak_mb=rec.peak_mb)
         print(start, json.dumps(out[start]), flush=True)
     os.makedirs(OUT, exist_ok=True)
@@ -211,6 +231,7 @@ def main():
     ap.add_argument("--trainable", default="C10,C12a,C12b")
     ap.add_argument("--tag", default="")
     ap.add_argument("--threads", type=int, default=os.cpu_count())
+    ap.add_argument("--device", default="auto", help="auto (CUDA if available, else CPU), cpu, cuda, cuda:1, mps")
     ap.add_argument("--sched", default="{}", help="JSON dict of Schedule overrides")
     a = ap.parse_args()
     torch.set_num_threads(a.threads)
@@ -221,7 +242,7 @@ def main():
     sch_kw.update(json.loads(a.sched))
     for seed in [int(x) for x in a.seeds.split(",")]:
         for v in a.variants.split(","):
-            run_one(a.sample, a.config, v, seed, sch_kw, a.dose, a.trainable.split(","), a.tag)
+            run_one(a.sample, a.config, v, seed, sch_kw, a.dose, a.trainable.split(","), a.tag, device=a.device)
 
 
 if __name__ == "__main__":

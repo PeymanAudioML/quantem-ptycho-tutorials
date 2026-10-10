@@ -16,7 +16,7 @@ Conventions are those of smatrix_depth_demo.py: window K x K pixels of DR Angstr
 window reciprocal grid (k = n / (K*DR)), illumination norm 1/sqrt(B K^2), orthonormal FFTs, amplitudes normalised by the
 largest total count, probe positions = window centres in global pixels, S referenced to the entrance surface.
 """
-import math, time, resource, json
+import math, os, time, resource, json, threading
 from dataclasses import dataclass, field, asdict
 import numpy as np
 import torch
@@ -39,9 +39,44 @@ def pick_device(name="auto"):
 
 
 def peak_memory_mb(device):
+    """Process-lifetime peak (CUDA: max allocated since the last reset; CPU: max RSS, monotone over the process)."""
     if device.type == "cuda":
         return torch.cuda.max_memory_allocated(device) / 2 ** 20
     return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0      # Linux: kB -> MB (process peak)
+
+
+def _current_rss_mb():
+    try:
+        with open("/proc/self/statm") as f:
+            return int(f.read().split()[1]) * os.sysconf("SC_PAGE_SIZE") / 2 ** 20
+    except (OSError, ValueError):
+        return float("nan")
+
+
+class PeakMemory:
+    """Per-run peak memory.  CUDA: reset_peak_memory_stats + max_memory_allocated.  CPU: the process max RSS never
+    resets, so the current RSS is sampled in a background thread (Linux /proc; NaN elsewhere) during the block."""
+
+    def __init__(self, device, interval=0.05):
+        self.device, self.interval, self.peak = torch.device(device), interval, float("nan")
+
+    def __enter__(self):
+        if self.device.type == "cuda":
+            torch.cuda.synchronize(self.device); torch.cuda.reset_peak_memory_stats(self.device)
+        else:
+            self._stop = threading.Event(); self.peak = _current_rss_mb()
+            def poll():
+                while not self._stop.wait(self.interval):
+                    self.peak = max(self.peak, _current_rss_mb())
+            self._t = threading.Thread(target=poll, daemon=True); self._t.start()
+        return self
+
+    def __exit__(self, *exc):
+        if self.device.type == "cuda":
+            torch.cuda.synchronize(self.device); self.peak = torch.cuda.max_memory_allocated(self.device) / 2 ** 20
+        else:
+            self._stop.set(); self._t.join(); self.peak = max(self.peak, _current_rss_mb())
+        return False
 
 
 # ----------------------------------------------------------------------------------------------- geometry
@@ -113,6 +148,9 @@ class Measurements:
     def J(self):
         return self.amp.shape[0]
 
+    def to(self, device):
+        return Measurements(self.amp.to(device), self.d_idx.to(device), self.pos.to(device), self.max_total, self.dose)
+
 
 # ----------------------------------------------------------------------------------------------- S matrix basics
 def vacuum_smatrix(geom, dtype=torch.complex64, device="cpu"):
@@ -159,6 +197,28 @@ def chunk_loss(Z, a, kind="amplitude", counts=1.0, eps=1e-12, det_mask=None):
     if det_mask is not None:
         r = r * det_mask
     return r.sum()
+
+
+def s_residual(Z, a, kind="amplitude", zero_threshold=1e-12, poisson_floor=1e-6, det_mask=None):
+    """Exit-wave residual R used by the S update (S_win -= eta conj(P)/|P|^2 F^-1[R]).
+
+    amplitude (Eq. 22):  R = Z - a Z/|Z|            = dD_Amp/dZ*            (Z/|Z| := 0 where |Z| <= zero_threshold)
+    poisson   (Eq. 20):  R = Z (1 - I/y) / 2        = dD_Pois/dZ* / (2 N)   (N = counts; y clamped from below at
+                         poisson_floor * max_k y of the same pattern).  The factor 1/2 makes the step equal to the
+                         amplitude step near convergence (Z(1 - a^2/|Z|^2) ~ 2 (Z - a Z/|Z|) for |Z| ~ a), so MU means
+                         the same for both losses.
+    det_mask (K, K) zeroes pixels that are not fitted (e.g. dark field for a bright-field-only data term)."""
+    mag = Z.abs()
+    if kind == "amplitude":
+        Zn = torch.where(mag > zero_threshold, Z / torch.clamp(mag, min=zero_threshold), torch.zeros_like(Z))
+        R = Z - a * Zn
+    elif kind == "poisson":
+        y = mag ** 2
+        floor = poisson_floor * y.amax(dim=(-2, -1), keepdim=True).clamp(min=1e-30)
+        R = 0.5 * Z * (1 - a ** 2 / torch.maximum(y, floor).clamp(min=1e-30))
+    else:
+        raise ValueError(kind)
+    return R if det_mask is None else R * det_mask
 
 
 # ----------------------------------------------------------------------------------------------- generalized simulator
@@ -237,7 +297,7 @@ def simulate_from_smatrix(S, probe, geom, chunk=64):
         for c0 in range(0, len(pos), chunk):
             Z = forward_chunk(gather_windows(St, pos[c0:c0 + chunk], geom.K), il[c0:c0 + chunk])
             out.append((Z.real ** 2 + Z.imag ** 2).float())
-    I = torch.cat(out).numpy().reshape(D, geom.nscan, geom.nscan, geom.K, geom.K)
+    I = torch.cat(out).cpu().numpy().reshape(D, geom.nscan, geom.nscan, geom.K, geom.K)
     return I, coords
 
 
@@ -261,26 +321,27 @@ def true_smatrix(ops, geom, thick, reference="entrance"):
 
 
 # ----------------------------------------------------------------------------------------------- depth sectioning
-def depth_sections_general(S, geom, depths):
+def depth_sections_general(S, geom, depths, device=None):
     """Port of smatrix_depth_demo.depth_sections for any geometry (shift beams to origin, Fresnel + paraxial shift,
     coherent sum).  Forward propagation by z from the entrance-referenced S (sign -1).  Returns complex (Z, Y, X)."""
-    St = torch.as_tensor(S)
+    St = torch.as_tensor(S, device=device)
+    dev = St.device
     by, bx = geom.beams()
     M, Y, dr, lam = geom.M, geom.Y, geom.dr, geom.lam
     Sq = torch.fft.fft2(St)
     for b in range(len(by)):
         Sq[b] = torch.roll(Sq[b], (-M * int(by[b]), -M * int(bx[b])), dims=(0, 1))
-    q = torch.as_tensor(np.fft.fftfreq(Y, dr), dtype=torch.float64)
-    kby = torch.as_tensor(by / geom.LW, dtype=torch.float64)
-    kbx = torch.as_tensor(bx / geom.LW, dtype=torch.float64)
-    out = torch.zeros((len(depths), Y, Y), dtype=Sq.dtype)
+    q = torch.as_tensor(np.fft.fftfreq(Y, dr), dtype=torch.float64, device=dev)
+    kby = torch.as_tensor(by / geom.LW, dtype=torch.float64, device=dev)
+    kbx = torch.as_tensor(bx / geom.LW, dtype=torch.float64, device=dev)
+    out = torch.zeros((len(depths), Y, Y), dtype=Sq.dtype, device=dev)
     for i, z in enumerate(depths):
         py = torch.exp(-1j * z * 2 * np.pi * lam * q[None, :] * kby[:, None]).to(Sq.dtype)
         px = torch.exp(-1j * z * 2 * np.pi * lam * q[None, :] * kbx[:, None]).to(Sq.dtype)
         acc = torch.einsum("byx,by,bx->yx", Sq, py, px)
         quad = torch.exp(-1j * z * np.pi * lam * (q[:, None] ** 2 + q[None, :] ** 2)).to(Sq.dtype)
         out[i] = torch.fft.ifft2(acc * quad)
-    return out.numpy()
+    return out.cpu().numpy()
 
 
 # ----------------------------------------------------------------------------------------------- optimiser
@@ -303,6 +364,7 @@ class Schedule:
     chunk: int = 20              # measurements per minibatch (also the stale-S chunk of the S update)
     probe_fraction: float = 1.0  # fraction of measurements used per probe gradient (random subset if < 1)
     zero_threshold: float = 1e-12    # |Z| below this -> Z/|Z| set to 0 (as the NumPy code)
+    poisson_floor: float = 1e-6      # Poisson residual: y clamped at this fraction of the pattern's max predicted y
     det_mask: str = "full"       # "full" detector or "bf" (bright-field disk only, loss and residual masked)
     seed: int = 0
 
@@ -314,20 +376,25 @@ class Schedule:
 
 class JointReconstructor:
     def __init__(self, meas, geom, probe, schedule, S_init=None, device="cpu", log=print):
-        self.meas, self.geom, self.probe, self.sch = meas, geom, probe, schedule
-        self.device, self.log = torch.device(device), log
+        self.device, self.log = pick_device(device) if isinstance(device, str) else torch.device(device), log
+        self.geom, self.sch = geom, schedule
+        self.meas = meas.to(self.device)                       # one device for data, probe and S
+        self.probe = probe.to(self.device)
         self.S = (vacuum_smatrix(geom, device=self.device) if S_init is None
                   else torch.as_tensor(S_init, dtype=torch.complex64, device=self.device).clone())
+        meas = self.meas
         self.nb = self.S.shape[0]
         self.eta, self.ncov = coverage_eta(meas, geom, self.nb, schedule.mu)
         self.pos_A = meas.pos.to(torch.float64) * geom.dr
+        self.pos_list = meas.pos.cpu().tolist()                 # host copy for the window loop (no device syncs)
         self.sum_a2 = float((meas.amp.double() ** 2).sum())
         self.det_mask = None
         if schedule.det_mask == "bf":
             q = np.fft.fftfreq(geom.K, geom.dr)
             m = (q[:, None] ** 2 + q[None, :] ** 2) <= (geom.alpha / geom.lam) ** 2
             self.det_mask = torch.as_tensor(m.astype(np.float32), device=self.device)
-        self.history = dict(s_iter=[], s_loss=[], s_time=[], p_iter=[], p_loss=[], p_time=[], p_grad=[], coeffs=[])
+        self.history = dict(s_iter=[], s_loss=[], s_time=[], p_iter=[], p_loss=[], p_time=[], p_grad=[], coeffs=[],
+                            eval=[])
         self.coeff_snap(0)
 
     # -- helpers
@@ -349,18 +416,10 @@ class JointReconstructor:
             idx = slice(c0, min(c0 + self.sch.chunk, J))
             il, pos, a = illum_all[idx], self.meas.pos[idx], self.meas.amp[idx]
             Z = forward_chunk(gather_windows(S, pos, K), il)
-            mag = Z.abs()
-            tot += float(((mag - a) ** 2).sum())
-            if self.sch.loss == "amplitude":
-                Zn = torch.where(mag > thr, Z / torch.clamp(mag, min=thr), torch.zeros_like(Z))
-                resid = Z - a * Zn
-            else:                                           # Poisson: Z (1 - I / y)
-                y = mag ** 2
-                resid = Z * (1 - a ** 2 / torch.clamp(y, min=1e-6 * float(y.max())))
-            if self.det_mask is not None:
-                resid = resid * self.det_mask
+            tot += float(((Z.abs() - a) ** 2).sum())        # stale running estimate (S before this chunk's update)
+            resid = s_residual(Z, a, self.sch.loss, thr, self.sch.poisson_floor, self.det_mask)
             R = torch.fft.ifft2(resid, norm="ortho").to(S.dtype)
-            for j, (y0, x0) in enumerate(pos.tolist()):
+            for j, (y0, x0) in enumerate(self.pos_list[idx]):
                 coef = (eta * torch.conj(il[j]) / torch.abs(il[j]) ** 2).to(S.dtype)
                 S[:, y0 - h:y0 + h, x0 - h:x0 + h] -= coef[:, None, None] * R[j][None]
         return tot / self.sum_a2
@@ -368,7 +427,7 @@ class JointReconstructor:
     # -- Stage B: probe update (S detached; autograd through Eq. 23)
     def probe_loss_backward(self, subset=None):
         K, J = self.geom.K, self.meas.J
-        order = torch.arange(J) if subset is None else subset
+        order = torch.arange(J, device=self.device) if subset is None else subset.to(self.device)
         counts = self.meas.dose * self.meas.max_total
         norm = self.sum_a2 * (counts if self.sch.loss == "poisson" else 1.0)
         total = 0.0
@@ -406,6 +465,30 @@ class JointReconstructor:
         self.coeff_snap(it)
         return loss
 
+    @torch.no_grad()
+    def evaluate_loss(self):
+        """Loss of the CURRENT (S, probe) over the whole dataset, after all updates (the per-sweep s_loss is a running
+        estimate taken before each chunk's update).  Returns relative amplitude loss on the full detector and on the
+        fitted pixels (= full unless det_mask), plus the Poisson NLL per pattern when loss == "poisson"."""
+        K, J = self.geom.K, self.meas.J
+        illum = self.illumination(slice(None))
+        full = fitted = pois = 0.0
+        counts = self.meas.dose * self.meas.max_total
+        a2_fit = float(((self.meas.amp.double() ** 2) * (1 if self.det_mask is None else self.det_mask)).sum())
+        for c0 in range(0, J, self.sch.chunk):
+            idx = slice(c0, min(c0 + self.sch.chunk, J))
+            Z = forward_chunk(gather_windows(self.S, self.meas.pos[idx], K), illum[idx])
+            a = self.meas.amp[idx]
+            r = (Z.abs() - a) ** 2
+            full += float(r.sum())
+            fitted += float(r.sum() if self.det_mask is None else (r * self.det_mask).sum())
+            if self.sch.loss == "poisson":
+                pois += float(chunk_loss(Z, a, "poisson", counts, det_mask=self.det_mask))
+        out = dict(rel_amplitude_loss=full / self.sum_a2, rel_amplitude_loss_fitted=fitted / a2_fit)
+        if self.sch.loss == "poisson":
+            out["poisson_nll_per_pattern"] = pois / J
+        return out
+
     def make_opt(self, lr):
         if self.sch.probe_optimizer == "adam":
             return torch.optim.Adam([self.probe.theta], lr=lr)
@@ -420,6 +503,12 @@ class JointReconstructor:
 
     def run(self):
         """Algorithm 1 (block coordinate descent) with warm-up, alternating cycles and final refinement."""
+        with PeakMemory(self.device) as pm:
+            self._run()
+        self.peak_mb = pm.peak
+        return self.S
+
+    def _run(self):
         sch, t_start = self.sch, time.time()
         torch.manual_seed(sch.seed)
         opt = self.make_opt(sch.probe_lr)
@@ -447,13 +536,16 @@ class JointReconstructor:
             if sch.mode == "joint":
                 for _ in range(sch.final_p):
                     self.probe_step(opt, it)
+        if self.device.type == "cuda":
+            torch.cuda.synchronize(self.device)
         self.runtime = time.time() - t_start
-        self.peak_mb = peak_memory_mb(self.device)
-        return self.S
+        self.final_eval = self.evaluate_loss()                  # loss of the returned (S, probe), after the last update
+        self.history["eval"].append((it, self.final_eval))
 
     def summary(self):
-        return dict(runtime_s=self.runtime, peak_memory_mb=self.peak_mb, eta=self.eta, ncov=self.ncov,
-                    final_loss=self.history["s_loss"][-1] if self.history["s_loss"] else None,
+        return dict(runtime_s=self.runtime, peak_memory_mb=self.peak_mb, device=str(self.device), eta=self.eta, ncov=self.ncov,
+                    final_loss=self.final_eval["rel_amplitude_loss"], final_eval=self.final_eval,
+                    last_sweep_loss=self.history["s_loss"][-1] if self.history["s_loss"] else None,
                     schedule=asdict(self.sch), coefficients=self.probe.as_dicts())
 
 
@@ -493,9 +585,29 @@ def smatrix_error(S_rec, S_true_entr, geom, z_out=None):
     return dict(nrmse=best[0], z_out=best[1])
 
 
+def axial_fwhm(depths, a):
+    """Full width at half maximum of the contiguous peak containing the maximum of a (baseline = min of a), with
+    linear interpolation of both half-maximum crossings.  Returns (width, open); open = True when the peak runs into
+    the end of the depth range on either side, in which case the width is only a lower bound."""
+    depths, a = np.asarray(depths, float), np.asarray(a, float)
+    ib = int(np.argmax(a)); half = a.min() + 0.5 * (a[ib] - a.min())
+    lo = ib
+    while lo > 0 and a[lo - 1] >= half:
+        lo -= 1
+    hi = ib
+    while hi < len(a) - 1 and a[hi + 1] >= half:
+        hi += 1
+    def cross(i_in, i_out):                     # interpolate between an inside (>= half) and an outside sample
+        return depths[i_in] + (depths[i_out] - depths[i_in]) * (a[i_in] - half) / (a[i_in] - a[i_out])
+    z_lo = cross(lo, lo - 1) if lo > 0 else depths[0]
+    z_hi = cross(hi, hi + 1) if hi < len(a) - 1 else depths[-1]
+    return float(z_hi - z_lo), bool(lo == 0 or hi == len(a) - 1)
+
+
 def layer_metrics(phase_stack, layers_c, layer_z, depths):
     """Depth localisation for layered samples: correlation with each true layer vs depth (Terzoudis-Lumsden style
-    axial response), found depth (centre of the contiguous |r| plateau), error, axial FWHM, cross-talk."""
+    axial response), found depth (centre of the contiguous |r| plateau), error, axial FWHM (contiguous main peak,
+    interpolated; fwhm_open flags a lower bound), cross-talk."""
     C = np.array([[corr(phase_stack[i], L) for L in layers_c] for i in range(len(depths))])
     rows = []
     for j, z in enumerate(layer_z):
@@ -504,14 +616,12 @@ def layer_metrics(phase_stack, layers_c, layer_z, depths):
         while lo > 0 and a[lo - 1] >= thr: lo -= 1
         while hi < len(a) - 1 and a[hi + 1] >= thr: hi += 1
         w = a[lo:hi + 1]; zc = float(np.sum(depths[lo:hi + 1] * w) / np.sum(w))
-        half = a.min() + 0.5 * (a[ib] - a.min())
-        above = np.where(a >= half)[0]
-        fwhm = float(depths[above.max()] - depths[above.min()]) if len(above) else float("nan")
+        fwhm, fwhm_open = axial_fwhm(depths, a)
         iz = int(np.argmin(np.abs(depths - z)))
         others = [abs(C[iz, k]) for k in range(len(layer_z)) if k != j]
         xt = float(np.mean(others) / max(abs(C[iz, j]), 1e-9)) if others else float("nan")
         rows.append(dict(true_z=float(z), found_z=zc, err=zc - float(z), r=float(C[ib, j]), r_at_true=float(C[iz, j]),
-                         fwhm=fwhm, crosstalk=xt))
+                         fwhm=fwhm, fwhm_open=fwhm_open, crosstalk=xt))
     err = np.array([r["err"] for r in rows])
     return dict(layers=rows, mean_abs_depth_err=float(np.abs(err).mean()), max_abs_depth_err=float(np.abs(err).max()),
                 mean_r=float(np.mean([r["r"] for r in rows])), mean_fwhm=float(np.mean([r["fwhm"] for r in rows])),
