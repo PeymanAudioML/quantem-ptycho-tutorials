@@ -355,7 +355,10 @@ class Schedule:
     final_s: int = 3             # final refinement S sweeps (reduced step)
     final_p: int = 1             # final refinement probe updates (reduced lr)
     final_factor: float = 0.3    # step / learning-rate reduction in the final refinement
-    mu: float = 60.0             # S step (same parameterisation as the NumPy MU)
+    mu: float = 60.0             # S step (same parameterisation as the NumPy MU; analytic S update, and SGD default lr)
+    s_method: str = "autograd"   # S update: "autograd" (torch autograd + optimizer) or "analytic" (hand-written Eq. 22)
+    s_optimizer: str = "adam"    # autograd S update: "adam" or "sgd"
+    s_lr: float = 0.01           # autograd S learning rate (Adam; set <= 0 with SGD for auto lr); SGD uses eta / (2 mean|P|^2), the analytic step size, if s_lr <= 0
     probe_lr: float = 0.05       # probe learning rate in normalised units (1 = 1 rad at aperture edge)
     probe_optimizer: str = "adam"   # "adam" or "sgd" (sgd = plain gradient step as in Alg. 1)
     grad_clip: float = 1.0       # max norm of the normalised probe gradient (0 = off)
@@ -382,6 +385,7 @@ class JointReconstructor:
         self.probe = probe.to(self.device)
         self.S = (vacuum_smatrix(geom, device=self.device) if S_init is None
                   else torch.as_tensor(S_init, dtype=torch.complex64, device=self.device).clone())
+        self.S_opt = None                                       # lazily built optimizer for the autograd S update
         meas = self.meas
         self.nb = self.S.shape[0]
         self.eta, self.ncov = coverage_eta(meas, geom, self.nb, schedule.mu)
@@ -422,6 +426,41 @@ class JointReconstructor:
             for j, (y0, x0) in enumerate(self.pos_list[idx]):
                 coef = (eta * torch.conj(il[j]) / torch.abs(il[j]) ** 2).to(S.dtype)
                 S[:, y0 - h:y0 + h, x0 - h:x0 + h] -= coef[:, None, None] * R[j][None]
+        return tot / self.sum_a2
+
+    # -- Stage A (autograd): same minibatch structure as above, but the gradient comes from torch autograd on the
+    #    Eq. 9 forward model + data loss and the step is taken by a torch.optim optimizer on S itself.
+    def make_s_opt(self):
+        sch = self.sch
+        self.S.requires_grad_(True)
+        if sch.s_optimizer == "adam":
+            return torch.optim.Adam([self.S], lr=sch.s_lr)
+        if sch.s_lr > 0:
+            lr = sch.s_lr
+        else:                                                   # torch grad = 2 dL/dS*; Eq. 22 also divides by |P|^2
+            lr = 0.5 * self.eta / float((self.illumination(slice(None)).abs() ** 2).mean())
+        return torch.optim.SGD([self.S], lr=lr)
+
+    def s_update_sweep_autograd(self, scale=1.0):
+        if self.S_opt is None:
+            self.S_opt = self.make_s_opt()
+        opt, K, J = self.S_opt, self.geom.K, self.meas.J
+        base = [g.setdefault("base_lr", g["lr"]) for g in opt.param_groups]
+        for g, b in zip(opt.param_groups, base):
+            g["lr"] = b * scale
+        counts = self.meas.dose * self.meas.max_total
+        with torch.no_grad():
+            illum_all = self.illumination(slice(None))
+        tot = 0.0
+        for c0 in range(0, J, self.sch.chunk):
+            idx = slice(c0, min(c0 + self.sch.chunk, J))
+            opt.zero_grad(set_to_none=True)
+            Z = forward_chunk(gather_windows(self.S, self.meas.pos[idx], K), illum_all[idx])
+            a = self.meas.amp[idx]
+            loss = chunk_loss(Z, a, self.sch.loss, counts, det_mask=self.det_mask)
+            loss.backward()
+            tot += float(((Z.detach().abs() - a) ** 2).sum())   # stale running estimate, as in the analytic sweep
+            opt.step()
         return tot / self.sum_a2
 
     # -- Stage B: probe update (S detached; autograd through Eq. 23)
@@ -496,7 +535,10 @@ class JointReconstructor:
 
     def _s(self, it, eta):
         t0 = time.time()
-        loss = self.s_update_sweep(eta)
+        if self.sch.s_method == "autograd":
+            loss = self.s_update_sweep_autograd(eta / self.eta)  # eta carries only the final-refinement factor here
+        else:
+            loss = self.s_update_sweep(eta)
         h = self.history
         h["s_iter"].append(it); h["s_loss"].append(loss); h["s_time"].append(time.time() - t0)
         self.log(f"  S iter {it:3d}  rel. amplitude loss {loss:.5f}  ({h['s_time'][-1]:.1f}s)")
@@ -506,7 +548,7 @@ class JointReconstructor:
         with PeakMemory(self.device) as pm:
             self._run()
         self.peak_mb = pm.peak
-        return self.S
+        return self.S.detach()
 
     def _run(self):
         sch, t_start = self.sch, time.time()

@@ -117,7 +117,7 @@ def test_torch_fixed_probe_matches_numpy(small):
     by, bx = g.beams()
     nominal = pa.coefficient_matrix([{"C10": df} for df in m.DEFOCI])
     probe = pa.AberrationProbe(by / g.LW, bx / g.LW, g.lam, g.alpha, nominal, norm=1 / math.sqrt(len(by) * g.K ** 2))
-    sch = jp.Schedule(mode="s_only", warmup_s=3, cycles=0, final_s=0, mu=m.MU)
+    sch = jp.Schedule(mode="s_only", s_method="analytic", warmup_s=3, cycles=0, final_s=0, mu=m.MU)
     rec = jp.JointReconstructor(meas, g, probe, sch, S_init=S0, log=lambda *_: None)
     S_t = rec.run().numpy()
     rel = np.linalg.norm(S_t - S_np) / np.linalg.norm(S_np - S0)
@@ -258,7 +258,7 @@ def test_s_update_is_preconditioned_gradient_step(small, kind, det):
     g = small
     meas, probe, S = _tiny_problem(g, seed=4)
     S32 = S.to(torch.complex64)
-    sch = jp.Schedule(mode="s_only", loss=kind, det_mask=det, chunk=meas.J, warmup_s=1, cycles=0, final_s=0,
+    sch = jp.Schedule(mode="s_only", s_method="analytic", loss=kind, det_mask=det, chunk=meas.J, warmup_s=1, cycles=0, final_s=0,
                       poisson_floor=0.0)
     rec = jp.JointReconstructor(meas, g, probe, sch, S_init=S32, log=lambda *_: None)
     rec.s_update_sweep(rec.eta)
@@ -386,3 +386,16 @@ def test_joint_smoke_runs_and_reduces_loss():
     e0 = np.abs(nominal - true)[1:, :3].sum()
     e1 = np.abs(probe.coefficients().detach().numpy() - true)[1:, :3].sum()
     assert e1 < e0, (e0, e1)
+
+
+@pytest.mark.parametrize("opt", ["adam", "sgd"])
+def test_autograd_s_update_reduces_loss(opt):
+    """Autograd + torch.optim S update (default s_method) drives the data loss down on the smoke problem."""
+    g, nominal, true, S_true, meas, by, bx, norm = _smoke_setup()
+    probe = pa.AberrationProbe(by / g.LW, bx / g.LW, g.lam, g.alpha, nominal, trainable=[], norm=norm)
+    sch = jp.Schedule(mode="s_only", s_optimizer=opt, s_lr=0.01 if opt == "adam" else 0.0, warmup_s=6, cycles=0, final_s=0, mu=20.0)
+    rec = jp.JointReconstructor(meas, g, probe, sch, log=lambda *_: None)
+    S = rec.run()
+    assert not S.requires_grad
+    l = rec.history["s_loss"]
+    assert l[-1] < 0.7 * l[0], l
