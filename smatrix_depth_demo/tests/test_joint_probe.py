@@ -91,6 +91,17 @@ def test_simulator_reproduces_existing(small):
     assert np.array_equal(dps, dps_ref)
 
 
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="needs CUDA")
+def test_simulator_gpu_matches_numpy(small):
+    g = small
+    layers = random_layers(g)
+    C = pa.coefficient_matrix([{"C10": df} for df in m.DEFOCI])
+    ops = jp.ops_layers(layers, m.LAYER_Z, m.THICK, g)
+    ref, _ = jp.simulate_4dstem(ops, C, g)
+    gpu, _ = jp.simulate_4dstem(ops, C, g, device="cuda")
+    assert np.linalg.norm(gpu - ref) / np.linalg.norm(ref) < 1e-4
+
+
 def test_depth_sections_match_existing(small):
     g = small
     rng = np.random.default_rng(3)

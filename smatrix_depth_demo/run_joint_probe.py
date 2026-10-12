@@ -12,6 +12,7 @@ Configs: A = data simulated with the nominal probe; B = relative defocus + two-f
 non-reference datasets; Bcoma = B plus axial coma; G = the same error on ALL datasets incl. the reference (gauge demo).
 """
 import argparse, json, math, os, sys, time
+from dataclasses import asdict
 import numpy as np
 import torch
 
@@ -39,23 +40,26 @@ def sample(name):
         g = jp.STANDARD
         return dict(geom=g, ops=jp.ops_layers(d["layers"], cfg["layer_z"], 300.0, g), thick=300.0,
                     defoci=[-200.0, -100.0, 0.0], kind="layers", layers=d["layers"], layer_z=cfg["layer_z"])
-    if name == "poly" or name.startswith("poly_s"):
-        # poly = existing 0.8 A scan step; poly_s{n}: same 20 A scan field with an n-pixel (0.2 A each) step
-        rd = os.path.join(HERE, "results_poly")
-        d = np.load(os.path.join(rd, "layers_and_data.npz")); cfg = json.load(open(os.path.join(rd, "config.json")))
-        step = int(name.split("_s")[1]) if "_s" in name else 4
-        g = jp.STANDARD if step == 4 else jp.Geometry(nscan=100 // step, step=step)
-        return dict(geom=g, ops=jp.ops_slices(d["layers"], cfg["dz"]), thick=cfg["thickness"], defoci=cfg["defoci"],
-                    kind="slabs", slices=d["layers"], dz=cfg["dz"])
+    if name.startswith("poly_abtem"):
+        # polycrystal simulated with abTEM (make_poly_abtem.py); poly_abtem[D][_setup]: D defoci evenly spaced in -150..0 A
+        # (D = 3 -> -150, -75, 0), setup from geom_spec.py (a20 default, a30 = 30 mrad).  Data come from the cache written there,
+        # truth = abTEM projected potential per slice.  No ground-truth S-matrix (skip_true_S): scored by probe, loss and slab metrics.
+        import geom_spec as gs
+        D, setup = gs.parse_sample(name); sp = gs.spec(setup)
+        defoci = [-150.0, -75.0, 0.0] if D == 3 else [float(v) for v in np.linspace(-150.0, 0.0, D)]
+        sl = np.load(os.path.join(HERE, "results_poly", f"abtem_truth_slices{gs.suffix(setup)}.npz"))["slices"]
+        g = jp.STANDARD if setup == "a20" else jp.Geometry(alpha=sp["alpha"], dr=sp["dr"], K=sp["K"], M=sp["M"], nscan=sp["nscan"], step=sp["step"])
+        return dict(geom=g, ops=None, thick=150.0, defoci=defoci, kind="slabs", slices=sl, dz=2.5, skip_true_S=True)
     if name.startswith("sep"):
         # two-layer axial-resolution benchmark: the SAME atom pattern in two layers at 150 -/+ sep/2.
         # sep{sep}[x{mult}][_s{step}], e.g. sep40_s2.  sep = 0 is the coincident control: one layer at 150 A carrying
         # mult copies of the pattern phase (default 2 = same total scattering as the two-layer samples; x1 = one copy,
         # the single-layer response used for the superposition check).  Reduced geometry (128^2 grid, 10.4 A field).
-        body = name[3:]
+        # optional suffix _a30: 30 mrad setup (0.16 A pixels, 80 px window, same 25.6 A box and ~10.4 A scan field), e.g. sep80_s3_a30
+        a30 = name.endswith("_a30"); body = (name[:-4] if a30 else name)[3:]
         head = body.split("_s")[0]; step = int(body.split("_s")[1]) if "_s" in body else 2
         sep = float(head.split("x")[0]); mult = float(head.split("x")[1]) if "x" in head else (2.0 if sep == 0 else 1.0)
-        g = jp.Geometry(M=2, nscan=52 // step, step=step)
+        g = jp.Geometry(alpha=0.030, dr=0.16, K=80, M=2, nscan=round(10.4 / (0.16 * step)), step=step) if a30 else jp.Geometry(M=2, nscan=52 // step, step=step)
         rng = np.random.default_rng(7)
         c = g.Y * g.dr / 2
         yy = (np.arange(g.Y) * g.dr)[:, None]; xx = (np.arange(g.Y) * g.dr)[None, :]
@@ -97,6 +101,10 @@ def probe_config(defoci, config):
         add(2, C10=-20.0, C12a=12.0 * math.cos(2 * a2), C12b=12.0 * math.sin(2 * a2))
         if config == "Bcoma":
             add(1, C21a=500.0); add(2, C21b=-400.0)
+    elif config == "B7":                                   # B extended to up to 7 datasets (first two errors identical to B)
+        dC10 = [25.0, -20.0, 15.0, -25.0, 20.0, -15.0]; mag = [15.0, 12.0, 10.0, 14.0, 11.0, 13.0]; ang = [30.0, -50.0, 70.0, -20.0, 10.0, -70.0]
+        for d in range(1, len(defoci)):
+            a = math.radians(ang[d - 1]); add(d, C10=dC10[d - 1], C12a=mag[d - 1] * math.cos(2 * a), C12b=mag[d - 1] * math.sin(2 * a))
     elif config == "G":                                   # common error on ALL datasets (not identifiable)
         for d in range(len(defoci)):
             add(d, C10=25.0)
@@ -105,9 +113,11 @@ def probe_config(defoci, config):
     return nominal, true
 
 
-def get_data(sname, config, seed, dose):
+def get_data(sname, config, seed, dose, device=None):
     """Noiseless data cached per (sample, config); Poisson noise drawn per seed."""
     os.makedirs(CACHE, exist_ok=True)
+    dev = jp.pick_device(device) if isinstance(device, str) else device
+    device = dev if dev is not None and dev.type != "cpu" else None     # GPU simulator only when a GPU is used
     s = sample(sname)
     nominal, true = probe_config(s["defoci"], config)
     f = os.path.join(CACHE, f"clean_{sname}_{config}.npz")
@@ -115,7 +125,7 @@ def get_data(sname, config, seed, dose):
         dc = np.load(f); clean, coords = dc["dps"], dc["coords"]
     else:
         t0 = time.time()
-        clean, coords = jp.simulate_4dstem(s["ops"], true, s["geom"], names=NAMES)
+        clean, coords = jp.simulate_4dstem(s["ops"], true, s["geom"], names=NAMES, device=device)
         np.savez(f, dps=clean, coords=coords)
         print(f"simulated {sname}/{config} in {time.time() - t0:.0f}s", flush=True)
     dps = jp.add_poisson(clean, dose, seed) if dose > 0 else clean
@@ -162,8 +172,8 @@ def evaluate(S, probe, s, true, sname, depths, with_S_error=True, device="cpu"):
     return out, ph
 
 
-def run_one(sname, config, variant, seed, sch_kw, dose, trainable, tag="", device="cpu"):
-    s, nominal, true, dps, coords = get_data(sname, config, seed, dose)
+def run_one(sname, config, variant, seed, sch_kw, dose, trainable, tag="", device="cpu", volume_step=0.0, save_S=False):
+    s, nominal, true, dps, coords = get_data(sname, config, seed, dose, device=device)
     g = s["geom"]
     device = jp.pick_device(device) if isinstance(device, str) else device
     meas = jp.Measurements.from_dps(dps, coords, dose, device=device)
@@ -183,6 +193,20 @@ def run_one(sname, config, variant, seed, sch_kw, dose, trainable, tag="", devic
     base = os.path.join(d, f"{variant}_seed{seed}")
     json.dump(res, open(base + ".json", "w"), indent=1, default=float)
     np.savez_compressed(base + "_sections.npz", phase=ph.astype(np.float32), depths=depths)
+    if volume_step > 0:                     # complex refocused depth volume O_S(x, y, z) on the FULL S grid (not phase-only)
+        zs = np.arange(0.0, s["thick"] + 1e-6, volume_step)
+        O = jp.depth_sections_general(S_dev, g, zs, device=device)                # complex64 (Z, Y, X) = (depth, y, x)
+        cr0 = g.crop()
+        meta = dict(sample=sname, config=config, variant=variant, seed=seed, dose=dose, trainable=trainable, thick=s["thick"],
+                    depth_step_A=volume_step, dr_A=g.dr, grid=g.Y, crop_y=[cr0[0].start, cr0[0].stop], crop_x=[cr0[1].start, cr0[1].stop],
+                    scan_step_px=g.step, nscan=g.nscan, energy_eV=g.ev, alpha_rad=g.alpha, schedule=asdict(sch),
+                    coeff_est=probe.coefficients().detach().cpu().numpy().tolist(), coeff_true=np.asarray(true).tolist(), coeff_names=NAMES,
+                    note="O[z, y, x] = refocused complex exit-wave section of the recovered S-matrix, entrance-referenced; depth_step_A is a "
+                         "computational sampling interval, not the axial resolution")
+        np.savez_compressed(base + "_volume.npz", volume=O.astype(np.complex64), depths=zs, meta=json.dumps(meta, default=float))
+        print(f"   saved complex volume {O.shape} at {volume_step} A steps -> {base}_volume.npz", flush=True)
+    if save_S:
+        np.save(os.path.join(CACHE, f"S_{sname}_{config}{tag}_{variant}_seed{seed}.npy"), S_dev.detach().cpu().numpy().astype(np.complex64))
     # a few S-matrix beams (recovered and ground truth, entrance-referenced) for response figures
     by, bx = g.beams()
     sel = [int(np.argmin(by ** 2 + bx ** 2))] + [int(np.argmin((by - a) ** 2 + (bx - b) ** 2)) for a, b in ((6, 0), (0, -9), (8, 8))]
@@ -241,6 +265,8 @@ def main():
     ap.add_argument("--threads", type=int, default=os.cpu_count())
     ap.add_argument("--device", default="auto", help="auto (CUDA if available, else CPU), cpu, cuda, cuda:1, mps")
     ap.add_argument("--sched", default="{}", help="JSON dict of Schedule overrides")
+    ap.add_argument("--volume-step", type=float, default=0.0, help="if > 0, also save the complex refocused volume at this depth step (A)")
+    ap.add_argument("--save-S", action="store_true", help="save the recovered S-matrix (complex64 .npy, ~150 MB) in results_joint/cache/")
     a = ap.parse_args()
     torch.set_num_threads(a.threads)
     if a.cmd == "bench":
@@ -250,7 +276,8 @@ def main():
     sch_kw.update(json.loads(a.sched))
     for seed in [int(x) for x in a.seeds.split(",")]:
         for v in a.variants.split(","):
-            run_one(a.sample, a.config, v, seed, sch_kw, a.dose, a.trainable.split(","), a.tag, device=a.device)
+            run_one(a.sample, a.config, v, seed, sch_kw, a.dose, a.trainable.split(","), a.tag, device=a.device,
+                    volume_step=a.volume_step, save_S=a.save_S)
 
 
 if __name__ == "__main__":

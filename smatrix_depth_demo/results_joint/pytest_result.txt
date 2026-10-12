@@ -1,1 +1,0 @@
-24 passed, 1 skipped (CUDA test; no GPU) - 2026-10-10, torch CPU

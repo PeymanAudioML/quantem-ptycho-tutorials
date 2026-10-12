@@ -255,11 +255,33 @@ def _apply_ops(psi, ops, props):
     return psi
 
 
-def simulate_4dstem(ops, probe_coeffs, geom, dose=0.0, rng=None, names=None):
+def _simulate_clean_torch(p0, ops, props, coords, K, dev, chunk):
+    """Noiseless |FFT(window)|^2 for every scan position of one dataset, batched on `dev` (same arithmetic as the
+    NumPy loop: roll the probe to the scan position, apply the ops, crop the K x K window, ortho FFT)."""
+    Y = p0.shape[0]
+    p0 = torch.as_tensor(p0, device=dev)
+    ar = torch.arange(Y, device=dev)
+    pos = torch.as_tensor(coords.reshape(-1, 2), device=dev)
+    out = []
+    for c0 in range(0, len(pos), chunk):
+        ry, rx = pos[c0:c0 + chunk, 0], pos[c0:c0 + chunk, 1]
+        psi = p0[((ar[None, :] - ry[:, None]) % Y)[:, :, None], ((ar[None, :] - rx[:, None]) % Y)[:, None, :]]  # np.roll
+        for kind, v in ops:
+            psi = torch.fft.ifft2(torch.fft.fft2(psi) * props[v]) if kind == "prop" else psi * v
+        k = torch.arange(-(K // 2), K - K // 2, device=dev)
+        win = psi[torch.arange(len(ry), device=dev)[:, None, None], (ry[:, None] + k[None, :])[:, :, None],
+                  (rx[:, None] + k[None, :])[:, None, :]]
+        out.append((torch.fft.fft2(win, norm="ortho").abs() ** 2).float().cpu())
+    return torch.cat(out).numpy()
+
+
+def simulate_4dstem(ops, probe_coeffs, geom, dose=0.0, rng=None, names=None, device=None, chunk=32):
     """4D-STEM data for arbitrary per-dataset probe aberrations (probe_coeffs: (D, P) Angstrom, Eq. 23 basis).
 
     With only C10 = df non-zero this reproduces smatrix_depth_demo.simulate exactly (same arithmetic and RNG order).
     dose = 0 returns noiseless intensities.  Returns dps (D, nscan, nscan, K, K) float32 and coords.
+    device=None keeps the NumPy loop; device="cuda"/"auto"/torch.device runs the multislice batched in torch on that
+    device (Poisson noise is still drawn on the host with `rng`, in the same order).
     """
     names = list(names or DEFAULT_NAMES)
     props = {v: fresnel_np(geom, v) for k, v in ops if k == "prop"}
@@ -267,10 +289,20 @@ def simulate_4dstem(ops, probe_coeffs, geom, dose=0.0, rng=None, names=None):
     K = geom.K
     D = len(probe_coeffs)
     dps = np.zeros((D, geom.nscan, geom.nscan, K, K), np.float32)
+    if device is not None:
+        dev = pick_device(device) if isinstance(device, str) else torch.device(device)
+        tprops = {v: torch.as_tensor(p, device=dev) for v, p in props.items()}
+        tops = [(k, v if k == "prop" else torch.as_tensor(v, device=dev)) for k, v in ops]
     for d in range(D):
         A = probe_on_grid(list(probe_coeffs[d]), names, geom.Y, geom.Y, geom.dr, geom.lam, geom.alpha)
         p = np.fft.ifft2(A)
         p0 = (p / np.sqrt(np.sum(np.abs(p) ** 2))).astype(np.complex64)
+        if device is not None:
+            I = _simulate_clean_torch(p0, tops, tprops, coords, K, dev, chunk).reshape(geom.nscan, geom.nscan, K, K)
+            if dose > 0:
+                I = rng.poisson(I * dose).astype(np.float32) / dose
+            dps[d] = I
+            continue
         for iy in range(geom.nscan):
             for ix in range(geom.nscan):
                 ry, rx = coords[iy, ix]
