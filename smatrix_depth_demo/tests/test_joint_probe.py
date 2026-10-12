@@ -304,6 +304,49 @@ def test_poisson_floor_only_changes_clamped_pixels(small):
     assert (R_floor[clamped].abs() < R_exact[clamped].abs()).all()
 
 
+def test_poisson_loss_floor_bounds_gradient(small):
+    """chunk_loss(poisson_floor > 0) has the exact Eq. 11 gradient where y >= floor and a bounded one below it."""
+    g = small
+    meas, probe, S = _tiny_problem(g, seed=4)
+    with torch.no_grad():
+        il = probe.illumination(meas.d_idx, meas.pos.double() * g.dr).to(S.dtype)
+        Z0 = jp.forward_chunk(jp.gather_windows(S, meas.pos, g.K), il).to(torch.complex128)
+    a = meas.amp.double()
+    grads = {}
+    for fl in (0.0, 1e-6):
+        Z = Z0.clone().requires_grad_(True)
+        jp.chunk_loss(Z, a, "poisson", counts=50.0, poisson_floor=fl).backward()
+        grads[fl] = Z.grad
+    y = Z0.abs() ** 2
+    clamped = y < 1e-6 * y.amax(dim=(-2, -1), keepdim=True)
+    assert clamped.any()
+    assert torch.equal(grads[0.0][~clamped], grads[1e-6][~clamped])
+    assert (grads[1e-6][clamped].abs() <= grads[0.0][clamped].abs()).all()
+    assert torch.isfinite(grads[1e-6]).all()
+
+
+def test_unknown_trainable_name_raises():
+    with pytest.raises(ValueError):
+        pa.AberrationProbe([0.0], [0.0], 0.02, 0.02, np.zeros((2, len(pa.DEFAULT_NAMES))), trainable=["C32a"])
+
+
+def test_probe_step_budget():
+    """Adam moves each coefficient by ~lr per step: the logged budget is lr * (cycles * p + final_factor * final_p)."""
+    g, nominal, true, S_true, meas, by, bx, norm = _smoke_setup()
+    probe = pa.AberrationProbe(by / g.LW, bx / g.LW, g.lam, g.alpha, nominal, trainable=["C10"], norm=norm)
+    sch = jp.Schedule(mode="joint", cycles=4, p_per_cycle=2, final_p=1, final_factor=0.5, probe_lr=0.1)
+    msgs = []
+    rec = jp.JointReconstructor(meas, g, probe, sch, log=msgs.append)
+    b = rec.probe_step_budget()
+    assert abs(b["rad"] - 0.1 * 8.5) < 1e-12 and list(b["angstrom"]) == ["C10"]
+    assert abs(b["angstrom"]["C10"] - b["rad"] * float(probe.scale[0])) < 1e-9
+    assert any("budget" in m_ for m_ in msgs)
+    one = pa.AberrationProbe(by / g.LW, bx / g.LW, g.lam, g.alpha, nominal[:1], trainable=["C10"], norm=norm)
+    msgs = []
+    jp.JointReconstructor(jp.Measurements(meas.amp[:49], meas.d_idx[:49], meas.pos[:49], meas.max_total, meas.dose),
+                          g, one, sch, log=msgs.append)
+    assert any("will not change" in m_ for m_ in msgs)          # one dataset = reference only: nothing to learn
+
 def test_final_loss_is_loss_of_returned_state():
     """summary()['final_loss'] is the loss of the returned S and the final probe (after the last probe update)."""
     g, nominal, true, S_true, meas, by, bx, norm = _smoke_setup()

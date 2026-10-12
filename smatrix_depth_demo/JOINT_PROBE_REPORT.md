@@ -4,7 +4,13 @@ Technical report for the extension of `smatrix_depth_demo` with joint S-matrix /
 following Pelz *et al.*, *Phase-retrieval algorithm for the reconstruction of the scattering matrix from 4D-STEM data*,
 PRR **3**, 023159 (2021) (Secs. II.B–F, Algorithm 1, Apps. A and D), with depth localisation evaluated in the style of
 Terzoudis-Lumsden *et al.* (axial response, BF vs BF+DF).
-Everything here is simulated data, CPU only (4 cores, no GPU).
+Everything here is simulated data. The experiments in §5–§10 were run on CPU (4 cores, no GPU); the simulator and the
+reconstruction have since been moved to an automatically selected device (CUDA if available).
+
+**Repository status:** the generated outputs (`results_joint/`), the figure/table script (`make_joint_figs.py`), the
+experiment queues (`run_all_joint.sh`, `run_joint_followup.sh`) and `run_separation.py` were removed from the
+repository. The numbers below are kept as the record of those runs; the paths to them are historical. See §11 for the
+changes made after the second code review (default S update, reproducing the reported runs).
 
 The existing NumPy implementation (`smatrix_depth_demo.py`) and all earlier experiments are unchanged; the only edit
 to it is an optional `S_init=None` argument of `reconstruct()` used by the regression tests (default behaviour
@@ -17,21 +23,17 @@ identical).
 | `probe_aberrations.py` | Eq. 23 aberration basis (C10, C12, C21, C23, C30; optional C32, C34), polar ↔ Cartesian conversion, `AberrationProbe` (`torch.nn.Module`, coefficients are an `nn.Parameter`) |
 | `joint_smatrix_probe.py` | geometry, forward model (Eq. 9), losses (Eqs. 11/12), S update (Stage A), probe update (Stage B), Algorithm-1 schedule (`JointReconstructor`), generalised multislice simulator with arbitrary aberrations, ground-truth S, metrics |
 | `run_joint_probe.py` | experiments (`exp`) and the full-size NumPy regression/timing benchmark (`bench`) |
-| `make_joint_figs.py` | summary tables (`results_joint/summary_table.md/.json`) and figures (`results_joint/figures/`) |
-| `tests/test_joint_probe.py` | 12 tests: Eq. 23, NumPy regression, gradient checks, smoke tests |
-| `run_all_joint.sh`, `run_joint_followup.sh` | the exact experiment queue used for this report |
-| `results_joint/` | per-run JSON (history, coefficients, metrics), depth sections, S-beam samples, figures, tables |
+| `tests/test_joint_probe.py` | 31 tests (2 skipped without CUDA): Eq. 23, NumPy regression, gradient checks, smoke tests |
+| `results_joint/` | written by `run_joint_probe.py` (per-run JSON, depth sections, S-beam samples); not tracked |
 
 ### Install / run
 
 ```bash
 pip install torch numpy matplotlib pytest          # CPU wheels are enough; CUDA is used automatically if present
 cd smatrix_depth_demo
-python -m pytest -q tests                          # 12 tests, ~4 min on 1 CPU thread
-python run_joint_probe.py bench                    # full-size PyTorch vs NumPy regression (results_joint/bench_regression.json)
+python -m pytest -q tests                          # ~30 s on 4 CPU threads
+python run_joint_probe.py bench                    # PyTorch vs NumPy regression (analytic S update; needs results/layers_and_data.npz)
 python run_joint_probe.py exp --sample reduced_s2 --config B --variants fixed,joint,oracle --seeds 0,1,2,3,4
-./run_all_joint.sh                                 # everything in this report (~6 h on 4 CPU cores)
-python make_joint_figs.py                          # tables + figures
 ```
 
 Options: `--sched '{"loss": "poisson"}'` (Eq. 11 instead of Eq. 12), `'{"probe_optimizer": "sgd"}'` (plain gradient
@@ -99,7 +101,8 @@ optimisation (only in the tests).
 
 ## 4. Validation
 
-`python -m pytest -q tests` → **12 passed** (241 s, 1 CPU thread; `results_joint/pytest_result.txt`).
+`python -m pytest -q tests` → **12 passed** at the time of the runs (241 s, 1 CPU thread); 29 passed, 2 skipped
+after the revisions of §9 and §11.
 
 | test | checks |
 |---|---|
@@ -438,3 +441,31 @@ Interpretation:
 * Pilot status: one noise seed. Before calling 40/60 Å model-fittable, repeat the controls and those separations with
   two more seeds; for a realistic test the template should come from an independent calibration, not from the same
   simulation. The fixed and joint probe variants were deliberately not run.
+
+## 11. Revision after the second code review
+
+* **Default S update vs. the reported runs.** `Schedule.s_method` defaults to `"autograd"` (torch autograd + Adam,
+  `s_lr = 0.01`), added after the runs above. Every result in this report used the hand-written Eq. 22 update
+  (`s_method="analytic"`, μ = 60). `run_joint_probe.py` now sets `s_method="analytic"` both in `bench` (so it again
+  compares like with like against the NumPy `reconstruct`) and in the `exp` defaults; pass
+  `--sched '{"s_method": "autograd"}'` for the Adam update. The two converge differently (smoke problem, same
+  schedule: final loss 0.00080 analytic vs 0.00028 autograd), so the autograd numbers are not interchangeable with §5.
+* **Probe step budget.** With Adam each probe step moves a normalised coefficient by ≈ lr, so a schedule can change a
+  coefficient by at most ≈ lr × (cycles · p_per_cycle + final_factor · final_p) rad (1 rad = 15.7 Å of C10 at 300 kV,
+  20 mrad). `JointReconstructor` now logs this budget at the start of a run (`probe_step_budget()`). With the
+  `Schedule` defaults (lr 0.05, 7 steps) it is ≈ 0.31 rad ≈ 4.9 Å of C10, smaller than the errors of config B; the
+  §5 runs used lr 0.3 and 17 steps (≈ 4.9 rad ≈ 77 Å), so they were **not** budget-limited. On the smoke problem,
+  5 instead of 1 probe step per cycle changes the residual error fraction only from 0.50 to 0.45 (analytic S) or
+  0.51 to 0.39 (autograd S): the recovery limit is S absorbing the probe error, not the step budget.
+* **Gradient clipping** (`grad_clip`) is documented as effective only with `probe_optimizer="sgd"`; Adam's step does
+  not depend on the gradient scale.
+* **Poisson floor in the loss.** `chunk_loss(kind="poisson")` takes `poisson_floor` (y clamped inside the log at that
+  fraction of the pattern's maximum predicted y, floor detached). The autograd S update and the probe update use
+  `Schedule.poisson_floor` (1e-6), as the analytic residual already did; the gradient is unchanged wherever
+  y ≥ floor and bounded below it (test). The evaluated Poisson NLL stays exact.
+* **Input checks.** Unknown names in `trainable` raise `ValueError` (e.g. C32a when it is not in `names`). A joint or
+  probe-only run with no trainable coefficient (e.g. a single dataset, which is the fixed reference) logs a warning.
+* Not changed: the autograd S update takes one Adam step per chunk on the full S, so momentum keeps moving windows
+  outside the current chunk, and chunks are visited in a fixed order; resetting the S optimiser state after each
+  probe step was tried and gave mixed results on the smoke problem (residual 0.51 → 0.54 with 1 probe step per cycle,
+  0.39 → 0.31 with 5), so it was not adopted.

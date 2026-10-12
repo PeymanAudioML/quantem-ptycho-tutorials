@@ -185,13 +185,21 @@ def forward_chunk(W, illum):
     return torch.fft.fft2(z, norm="ortho")
 
 
-def chunk_loss(Z, a, kind="amplitude", counts=1.0, eps=1e-12, det_mask=None):
-    """Eq. 12 (amplitude: sum (|Z| - a)^2) or Eq. 11 (Poisson NLL in electron counts: sum y - I ln y)."""
+def chunk_loss(Z, a, kind="amplitude", counts=1.0, eps=1e-12, det_mask=None, poisson_floor=0.0):
+    """Eq. 12 (amplitude: sum (|Z| - a)^2) or Eq. 11 (Poisson NLL in electron counts: sum y - I ln y).
+
+    poisson_floor: inside the log, y is clamped from below at poisson_floor * max_k y of the same pattern (floor
+    detached), as in s_residual, so pixels with counts but ~zero predicted intensity give a bounded gradient instead
+    of one diverging like I / y.  0 = exact Eq. 11."""
     if kind == "amplitude":
         r = (Z.abs() - a) ** 2
     elif kind == "poisson":
         y = Z.real ** 2 + Z.imag ** 2
-        r = counts * y - counts * a ** 2 * torch.log(counts * y + eps)
+        y_log = y
+        if poisson_floor > 0:
+            floor = (poisson_floor * y.detach().amax(dim=(-2, -1), keepdim=True)).clamp(min=1e-30)
+            y_log = torch.maximum(y, floor)
+        r = counts * y - counts * a ** 2 * torch.log(counts * y_log + eps)
     else:
         raise ValueError(kind)
     if det_mask is not None:
@@ -391,17 +399,28 @@ class Schedule:
     s_method: str = "autograd"   # S update: "autograd" (torch autograd + optimizer) or "analytic" (hand-written Eq. 22)
     s_optimizer: str = "adam"    # autograd S update: "adam" or "sgd"
     s_lr: float = 0.01           # autograd S learning rate (Adam; set <= 0 with SGD for auto lr); SGD uses eta / (2 mean|P|^2), the analytic step size, if s_lr <= 0
-    probe_lr: float = 0.05       # probe learning rate in normalised units (1 = 1 rad at aperture edge)
+    probe_lr: float = 0.05       # probe learning rate in normalised units (1 = 1 rad at aperture edge).  With Adam each
+                                 # step moves a coefficient by ~probe_lr whatever the gradient, so the total correction is
+                                 # capped at ~probe_lr * (number of probe steps); see JointReconstructor.probe_step_budget
     probe_optimizer: str = "adam"   # "adam" or "sgd" (sgd = plain gradient step as in Alg. 1)
-    grad_clip: float = 1.0       # max norm of the normalised probe gradient (0 = off)
+    grad_clip: float = 1.0       # max norm of the normalised probe gradient (0 = off).  Mostly a no-op with Adam (its
+                                 # step is invariant to the gradient scale); it bounds the step only with "sgd"
     reg_lambda: float = 0.0      # weight of the quadratic prior on the probe corrections
     loss: str = "amplitude"      # data term for both blocks: "amplitude" (Eq. 12) or "poisson" (Eq. 11)
     chunk: int = 20              # measurements per minibatch (also the stale-S chunk of the S update)
     probe_fraction: float = 1.0  # fraction of measurements used per probe gradient (random subset if < 1)
     zero_threshold: float = 1e-12    # |Z| below this -> Z/|Z| set to 0 (as the NumPy code)
-    poisson_floor: float = 1e-6      # Poisson residual: y clamped at this fraction of the pattern's max predicted y
+    poisson_floor: float = 1e-6      # Poisson: y clamped at this fraction of the pattern's max predicted y (S residual,
+                                     # autograd S loss and probe loss; the reported Poisson NLL stays exact)
     det_mask: str = "full"       # "full" detector or "bf" (bright-field disk only, loss and residual masked)
     seed: int = 0
+
+    def n_probe_steps(self):
+        if self.mode == "probe_only":
+            return self.cycles * self.p_per_cycle
+        if self.mode != "joint":
+            return 0
+        return self.cycles * self.p_per_cycle + self.final_p
 
     def n_s_iters(self):
         if self.mode == "probe_only":
@@ -432,6 +451,26 @@ class JointReconstructor:
         self.history = dict(s_iter=[], s_loss=[], s_time=[], p_iter=[], p_loss=[], p_time=[], p_grad=[], coeffs=[],
                             eval=[])
         self.coeff_snap(0)
+        if schedule.mode in ("joint", "probe_only"):
+            if float(self.probe.mask.sum()) == 0:
+                log("  warning: no trainable probe coefficient (only the reference dataset, or trainable=[]); "
+                    "the probe will not change")
+            elif schedule.probe_optimizer == "adam":
+                b = self.probe_step_budget()
+                log(f"  probe step budget (Adam): <= ~{b['rad']:.2f} rad per coefficient = "
+                    + ", ".join(f"{k} {v:.3g} A" for k, v in b["angstrom"].items()))
+
+    def probe_step_budget(self):
+        """Largest total correction Adam can make over the schedule (~lr per step; final steps at lr * final_factor),
+        in normalised units (rad at the aperture edge) and in Angstrom per trainable coefficient."""
+        sch = self.sch
+        if sch.mode == "probe_only":
+            rad = sch.probe_lr * sch.n_probe_steps()
+        else:
+            rad = sch.probe_lr * (sch.cycles * sch.p_per_cycle + sch.final_factor * sch.final_p)
+        scale = self.probe.scale.cpu().numpy()
+        return dict(rad=rad, angstrom={nm: rad * float(scale[j]) for j, nm in enumerate(self.probe.names)
+                                       if nm in self.probe.trainable_names})
 
     # -- helpers
     def illumination(self, idx, grad=False):
@@ -489,7 +528,7 @@ class JointReconstructor:
             opt.zero_grad(set_to_none=True)
             Z = forward_chunk(gather_windows(self.S, self.meas.pos[idx], K), illum_all[idx])
             a = self.meas.amp[idx]
-            loss = chunk_loss(Z, a, self.sch.loss, counts, det_mask=self.det_mask)
+            loss = chunk_loss(Z, a, self.sch.loss, counts, det_mask=self.det_mask, poisson_floor=self.sch.poisson_floor)
             loss.backward()
             tot += float(((Z.detach().abs() - a) ** 2).sum())   # stale running estimate, as in the analytic sweep
             opt.step()
@@ -508,7 +547,8 @@ class JointReconstructor:
                 W = gather_windows(self.S, self.meas.pos[idx], K)          # constant: no gradient w.r.t. S
             il = self.illumination(idx, grad=True)
             Z = forward_chunk(W, il)
-            l = chunk_loss(Z, self.meas.amp[idx], self.sch.loss, counts, det_mask=self.det_mask) / norm
+            l = chunk_loss(Z, self.meas.amp[idx], self.sch.loss, counts, det_mask=self.det_mask,
+                           poisson_floor=self.sch.poisson_floor) / norm
             l.backward()
             total += float(l.detach())
             del W, Z, l

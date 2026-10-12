@@ -98,6 +98,9 @@ class AberrationProbe(nn.Module):
         super().__init__()
         self.names = list(names or DEFAULT_NAMES)
         self.trainable_names = list(trainable if trainable is not None else self.names)
+        unknown = [nm for nm in self.trainable_names if nm not in self.names]
+        if unknown:
+            raise ValueError(f"trainable coefficients {unknown} are not in names {self.names}")
         self.lam, self.ref_index = float(lam), int(ref_index)
         ky = torch.as_tensor(np.asarray(beam_ky, float), dtype=param_dtype, device=device)
         kx = torch.as_tensor(np.asarray(beam_kx, float), dtype=param_dtype, device=device)

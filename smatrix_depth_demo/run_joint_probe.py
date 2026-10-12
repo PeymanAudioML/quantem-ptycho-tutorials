@@ -241,7 +241,7 @@ def bench():
         t0 = time.time(); S_np, _, l_np = m.reconstruct(d["dps"], d["coords"], print, S_init=S0); t_np = time.time() - t0
         meas = jp.Measurements.from_dps(d["dps"], d["coords"], 2e5)
         rec = jp.JointReconstructor(meas, g, make_probe(g, nominal, []),
-                                    jp.Schedule(mode="s_only", warmup_s=2, cycles=0, final_s=0, mu=60.0), S_init=S0)
+                                    jp.Schedule(mode="s_only", s_method="analytic", warmup_s=2, cycles=0, final_s=0, mu=60.0), S_init=S0)
         S_t = rec.run().cpu().numpy()
         rel = float(np.linalg.norm(S_t - S_np) / np.linalg.norm(S_np - S0))
         out[start] = dict(numpy_loss=list(map(float, l_np)), torch_loss=rec.history["s_loss"], rel_S_diff=rel,
@@ -271,7 +271,9 @@ def main():
     torch.set_num_threads(a.threads)
     if a.cmd == "bench":
         return bench()
-    sch_kw = dict(warmup_s=5, cycles=8, s_per_cycle=3, p_per_cycle=2, final_s=3, final_p=1, mu=60.0,
+    # s_method="analytic": the hand-written Eq. 22 S update (MU = 60) used for every result in JOINT_PROBE_REPORT.md;
+    # pass --sched '{"s_method": "autograd"}' for the torch-optimizer S update (Schedule default)
+    sch_kw = dict(s_method="analytic", warmup_s=5, cycles=8, s_per_cycle=3, p_per_cycle=2, final_s=3, final_p=1, mu=60.0,
                   probe_lr=0.3, probe_fraction=0.34, grad_clip=1.0)
     sch_kw.update(json.loads(a.sched))
     for seed in [int(x) for x in a.seeds.split(",")]:
