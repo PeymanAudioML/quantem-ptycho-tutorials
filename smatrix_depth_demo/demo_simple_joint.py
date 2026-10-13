@@ -3,6 +3,7 @@ S-matrix and the probe aberrations, and refocus through the depth.
 
     python demo_simple_joint.py                    # small CPU demo (a few minutes)
     python demo_simple_joint.py --device cuda      # same on a GPU
+    python demo_simple_joint.py --simulator abtem --dr 0.2 --K 56 --Y 112 --step 2   # data from abTEM (gold atoms)
 
 With your own data, replace `simulate(...)` by your patterns (D, Ny, Nx, K, K), scan positions (Ny, Nx, 2) in S-grid
 pixels and nominal aberrations (D, P); the rest of `main()` stays the same.
@@ -95,6 +96,8 @@ def main():
     ap.add_argument("--Y", type=int, default=80)
     ap.add_argument("--step", type=int, default=1, help="scan step [px]; overlap is what makes the probe findable")
     ap.add_argument("--dose", type=float, default=1e5, help="electrons per pattern (0 = noiseless)")
+    ap.add_argument("--simulator", default="phase", choices=["phase", "abtem"],
+                    help="phase: Gaussian phase layers (built-in multislice); abtem: gold atoms, abTEM multislice")
     a = ap.parse_args()
     torch.set_num_threads(a.threads)
 
@@ -103,7 +106,7 @@ def main():
     grid = np.arange(s0, setup.Y - s0 + 1, a.step)                       # whole windows inside the S grid
     positions = np.stack(np.meshgrid(grid, grid, indexing="ij"), -1)
     # sample: 3 layers at 30 / 150 / 270 A in a 300 A slab (the axial response at 20 mrad is ~100 A wide)
-    layers, layer_z, thickness = make_layers(setup), [30.0, 150.0, 270.0], 300.0
+    layer_z, thickness = [30.0, 150.0, 270.0], 300.0
     # three datasets at set defoci (focus 250 / 150 / 50 A inside the sample); 1 and 2 have unknown errors
     nominal = np.zeros((3, len(sj.NAMES)))
     nominal[:, 0] = [-250.0, -150.0, -50.0]
@@ -112,7 +115,14 @@ def main():
     true[2, :3] += [-10.0, -3.0, 5.0]
 
     t0 = time.time()
-    dps = simulate(setup, layers, layer_z, thickness, true, positions, dose=a.dose, device=a.device)
+    if a.simulator == "abtem":
+        import abtem_data as ad
+        atoms, xy = ad.layered_atoms(setup, layer_z, thickness)
+        layers = ad.layer_images(setup, xy)                              # ground truth for the depth check
+        dps = ad.simulate_abtem(setup, atoms, true, positions, dose=a.dose)
+    else:
+        layers = make_layers(setup)
+        dps = simulate(setup, layers, layer_z, thickness, true, positions, dose=a.dose, device=a.device)
     amp, pos, didx = sj.prepare_data(dps, positions, device=a.device)
     nb = len(setup.beams()[0])
     ratio = amp.numel() / (2 * nb * setup.Y ** 2)

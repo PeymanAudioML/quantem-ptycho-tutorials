@@ -210,7 +210,7 @@ def fit(model, amp, epochs=40, warmup=8, batch=16, lr_S=0.02, lr_probe=None, mod
             opt_S.step()
             if both:
                 opt_P.step()
-            total += float(loss)
+            total += float(loss.detach())
         msg = f"epoch {ep + 1:3d}  loss {total / a2:.6f}"
 
         # alternating mode: full-batch probe steps with S fixed
