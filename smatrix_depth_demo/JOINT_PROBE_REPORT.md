@@ -10,7 +10,12 @@ reconstruction have since been moved to an automatically selected device (CUDA i
 **Repository status:** the generated outputs (`results_joint/`), the figure/table script (`make_joint_figs.py`), the
 experiment queues (`run_all_joint.sh`, `run_joint_followup.sh`) and `run_separation.py` were removed from the
 repository. The numbers below are kept as the record of those runs; the paths to them are historical. See §11 for the
-changes made after the second code review (default S update, reproducing the reported runs).
+changes made after the second code review.
+
+**Autograd only (§12):** the hand-written Eq. 22 S update that produced every result in §4–§10, the NumPy
+regression benchmark (`bench`) and the tests tied to them have been removed. Both the S and the probe update now use
+PyTorch autograd + `torch.optim`. The numbers in §4–§10 are a historical record and are not reproduced by the
+current code (it converges to different values; see §11).
 
 The existing NumPy implementation (`smatrix_depth_demo.py`) and all earlier experiments are unchanged; the only edit
 to it is an optional `S_init=None` argument of `reconstruct()` used by the regression tests (default behaviour
@@ -22,8 +27,8 @@ identical).
 |---|---|
 | `probe_aberrations.py` | Eq. 23 aberration basis (C10, C12, C21, C23, C30; optional C32, C34), polar ↔ Cartesian conversion, `AberrationProbe` (`torch.nn.Module`, coefficients are an `nn.Parameter`) |
 | `joint_smatrix_probe.py` | geometry, forward model (Eq. 9), losses (Eqs. 11/12), S update (Stage A), probe update (Stage B), Algorithm-1 schedule (`JointReconstructor`), generalised multislice simulator with arbitrary aberrations, ground-truth S, metrics |
-| `run_joint_probe.py` | experiments (`exp`) and the full-size NumPy regression/timing benchmark (`bench`) |
-| `tests/test_joint_probe.py` | 31 tests (2 skipped without CUDA): Eq. 23, NumPy regression, gradient checks, smoke tests |
+| `run_joint_probe.py` | experiments (`exp`) |
+| `tests/test_joint_probe.py` | 20 tests (2 skipped without CUDA): Eq. 23, simulator / depth sections vs the NumPy demo, autograd gradient checks, smoke tests |
 | `results_joint/` | written by `run_joint_probe.py` (per-run JSON, depth sections, S-beam samples); not tracked |
 
 ### Install / run
@@ -32,7 +37,6 @@ identical).
 pip install torch numpy matplotlib pytest          # CPU wheels are enough; CUDA is used automatically if present
 cd smatrix_depth_demo
 python -m pytest -q tests                          # ~30 s on 4 CPU threads
-python run_joint_probe.py bench                    # PyTorch vs NumPy regression (analytic S update; needs results/layers_and_data.npz)
 python run_joint_probe.py exp --sample reduced_s2 --config B --variants fixed,joint,oracle --seeds 0,1,2,3,4
 ```
 
@@ -46,12 +50,11 @@ PyTorch version).
 
 | Pelz et al. | implementation | verified by |
 |---|---|---|
-| Eq. 9 forward model `A_{k,d} = F[Σ_b Ψ_{d,b} e^{-2πi h_b·ρ} [C_{k,d} S]_b]` | `AberrationProbe.illumination` (Ψ_{d,b}·phase ramp) + `gather_windows` (cropping operator C, K×K window) + `forward_chunk` (batched Σ_b, ortho FFT) | `test_torch_fixed_probe_matches_numpy`, `bench` |
+| Eq. 9 forward model `A_{k,d} = F[Σ_b Ψ_{d,b} e^{-2πi h_b·ρ} [C_{k,d} S]_b]` | `AberrationProbe.illumination` (Ψ_{d,b}·phase ramp) + `gather_windows` (cropping operator C, K×K window) + `forward_chunk` (batched Σ_b, ortho FFT) | S and probe gradient tests (finite differences) |
 | Eq. 11 Poisson likelihood | `chunk_loss(kind="poisson")` = Σ (N y − N I ln N y), N = dose·normalisation | probe-gradient test (Poisson variant) |
 | Eq. 12 amplitude loss | `chunk_loss(kind="amplitude")` = Σ (\|Z\| − √I)² | gradient tests |
 | Eqs. 13–14 joint objective over (S, Ψ) | `JointReconstructor` (both blocks minimise the same data term; optional `reg_lambda·‖θ‖²`) | smoke tests |
-| Eqs. 15, 22, A3 (∂L/∂S*) | `s_update_sweep`: S ← S − η·conj(P)/\|P\|²·C*ᵀ F⁻¹(Z − √I Z/\|Z\|) | `test_s_gradients_autograd_vs_fd_and_adjoint` (autograd = finite differences = 2× the hand-written adjoint) |
-| Eq. 20 Poisson residual | `s_update_sweep` with `loss="poisson"`: Z(1 − I/y) (y clamped at 1e-6·max) | — |
+| Eqs. 15, 20, 22, A3 (∂L/∂S*) | `s_update_sweep`: autograd gradient of the Eq. 11/12 loss w.r.t. S, step by `torch.optim` (Adam default, SGD optional) per chunk of 20 patterns (until §12: hand-written S ← S − η·conj(P)/\|P\|²·C*ᵀ F⁻¹(Z − √I Z/\|Z\|)) | `test_s_gradients_autograd_vs_finite_difference` |
 | Eqs. 17, 19, 21 (∂L/∂Ψ, chain rule to the aberration coefficients) | autograd through `AberrationProbe.beam_coefficients` with S detached (`probe_loss_backward`) | `test_probe_gradients_autograd_vs_finite_difference` (amplitude + Poisson, float64, all 8 coefficients) |
 | Eq. 23 aberration function | `basis_function`, `AberrationProbe.chi` | `test_eq23_cartesian_equals_polar`, `test_c10_is_existing_defocus_phase`, `test_scale_gives_one_radian_at_aperture_edge` |
 | Algorithm 1 (block coordinate descent) | `JointReconstructor.run` | see §3 |
@@ -444,7 +447,7 @@ Interpretation:
 
 ## 11. Revision after the second code review
 
-* **Default S update vs. the reported runs.** `Schedule.s_method` defaults to `"autograd"` (torch autograd + Adam,
+* **Default S update vs. the reported runs** (superseded by §12: the analytic update and `bench` were removed). `Schedule.s_method` defaults to `"autograd"` (torch autograd + Adam,
   `s_lr = 0.01`), added after the runs above. Every result in this report used the hand-written Eq. 22 update
   (`s_method="analytic"`, μ = 60). `run_joint_probe.py` now sets `s_method="analytic"` both in `bench` (so it again
   compares like with like against the NumPy `reconstruct`) and in the `exp` defaults; pass
@@ -469,3 +472,22 @@ Interpretation:
   outside the current chunk, and chunks are visited in a fixed order; resetting the S optimiser state after each
   probe step was tried and gave mixed results on the smoke problem (residual 0.51 → 0.54 with 1 probe step per cycle,
   0.39 → 0.31 with 5), so it was not adopted.
+
+## 12. Autograd-only implementation
+
+The joint optimisation now uses PyTorch autograd for both blocks; the hand-written path was removed.
+
+* **Removed:** the hand-written Eq. 22 / Eq. 20 S update (`s_update_sweep` analytic version, `s_residual`,
+  `coverage_eta`) and the `Schedule` fields that only it used (`s_method`, `mu`, `zero_threshold`); the NumPy
+  regression benchmark (`run_joint_probe.py bench`); the tests of the hand-written update (NumPy regression,
+  residual = Wirtinger gradient, sweep = preconditioned gradient step, residual floor) and the adjoint comparison in
+  the S gradient test.
+* **S update:** `JointReconstructor.s_update_sweep(scale)` — for each chunk of `Schedule.chunk` patterns, autograd of
+  the data loss (Eq. 11 or 12, `poisson_floor` applied) w.r.t. S with the probe fixed, then one `torch.optim` step
+  (`s_optimizer="adam"`, `s_lr=0.01` by default; `"sgd"` needs an explicit, much larger `s_lr`, e.g. 80 on the test
+  problem). `final_factor` scales the S and probe learning rates in the final refinement.
+* **Kept:** the probe model and probe update, the forward model, losses, schedule, simulator, metrics, and
+  `smatrix_depth_demo.py` (used by `make_poly_abtem.py` and as the reference for the simulator, beam list and depth
+  sections in the tests). Tests: 18 passed, 2 skipped (CUDA).
+* `run_joint_probe.py exp` now runs the autograd S update with the §5 schedule otherwise unchanged (μ removed). The
+  experiments of §5–§10 have not been re-run with it.

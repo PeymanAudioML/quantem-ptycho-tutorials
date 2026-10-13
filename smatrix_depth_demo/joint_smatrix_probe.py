@@ -5,10 +5,9 @@ Mapping to the paper (see README "Joint S-matrix / probe optimisation" for the f
   * intensities y = |A|^2                       Eq. 10
   * losses D_Amp, D_Pois                        Eq. 11-12 -> `chunk_loss`
   * joint objective, block coordinate descent   Eq. 13-14, Alg. 1 -> `JointReconstructor.run`
-  * S gradient (adjoint, Eq. 15 / A3)           Eq. 22 (amplitude), Eq. 20 (Poisson) -> `s_update_sweep`
-        The existing (Brown et al.-based) update S_win -= eta * conj(P_j)/|P_j|^2 * F^-1[Z - a Z/|Z|] is Eq. 22 with a
-        constant diagonal preconditioner 1/|Psi|^2 (|Psi| is constant on the aperture) and is reproduced exactly.
-  * probe gradient                               Eq. 17/19/21 via PyTorch autograd through Eq. 23 -> `probe_update`
+  * S gradient (Eq. 15 / 22 / A3, Eq. 20)       PyTorch autograd through Eq. 9 + the data loss; the step is taken by a
+                                                 torch.optim optimizer on S -> `s_update_sweep`
+  * probe gradient                               Eq. 17/19/21 via PyTorch autograd through Eq. 23 -> `probe_loss_backward`
   * probe model (aberration polynomials)         Eq. 23 -> probe_aberrations.AberrationProbe
   * ambiguities / initialisation                 Sec. II.F: vacuum S init (S_b = exp(2 pi i h_b.r)), reference dataset fixed
 
@@ -162,16 +161,6 @@ def vacuum_smatrix(geom, dtype=torch.complex64, device="cpu"):
     return torch.as_tensor(S.astype(np.complex64 if dtype == torch.complex64 else np.complex128), device=device)
 
 
-def coverage_eta(meas, geom, nb, mu):
-    """Step size eta = mu / (B * median window overlap), exactly as the NumPy reconstruction."""
-    cover = np.zeros((geom.Y, geom.Y))
-    K = geom.K
-    for r in meas.pos.cpu().numpy():
-        cover[r[0] - K // 2: r[0] + K // 2, r[1] - K // 2: r[1] + K // 2] += 1
-    ncov = np.median(cover[cover > 0.5 * cover.max()])
-    return mu / (nb * ncov), float(ncov)
-
-
 def gather_windows(S, pos, K):
     """C_{k,d} S for a chunk of positions: (J, B, K, K) copy of the cropped windows (Eq. 7/9)."""
     h = K // 2
@@ -189,7 +178,7 @@ def chunk_loss(Z, a, kind="amplitude", counts=1.0, eps=1e-12, det_mask=None, poi
     """Eq. 12 (amplitude: sum (|Z| - a)^2) or Eq. 11 (Poisson NLL in electron counts: sum y - I ln y).
 
     poisson_floor: inside the log, y is clamped from below at poisson_floor * max_k y of the same pattern (floor
-    detached), as in s_residual, so pixels with counts but ~zero predicted intensity give a bounded gradient instead
+    detached), so pixels with counts but ~zero predicted intensity give a bounded gradient instead
     of one diverging like I / y.  0 = exact Eq. 11."""
     if kind == "amplitude":
         r = (Z.abs() - a) ** 2
@@ -205,28 +194,6 @@ def chunk_loss(Z, a, kind="amplitude", counts=1.0, eps=1e-12, det_mask=None, poi
     if det_mask is not None:
         r = r * det_mask
     return r.sum()
-
-
-def s_residual(Z, a, kind="amplitude", zero_threshold=1e-12, poisson_floor=1e-6, det_mask=None):
-    """Exit-wave residual R used by the S update (S_win -= eta conj(P)/|P|^2 F^-1[R]).
-
-    amplitude (Eq. 22):  R = Z - a Z/|Z|            = dD_Amp/dZ*            (Z/|Z| := 0 where |Z| <= zero_threshold)
-    poisson   (Eq. 20):  R = Z (1 - I/y) / 2        = dD_Pois/dZ* / (2 N)   (N = counts; y clamped from below at
-                         poisson_floor * max_k y of the same pattern).  The factor 1/2 makes the step equal to the
-                         amplitude step near convergence (Z(1 - a^2/|Z|^2) ~ 2 (Z - a Z/|Z|) for |Z| ~ a), so MU means
-                         the same for both losses.
-    det_mask (K, K) zeroes pixels that are not fitted (e.g. dark field for a bright-field-only data term)."""
-    mag = Z.abs()
-    if kind == "amplitude":
-        Zn = torch.where(mag > zero_threshold, Z / torch.clamp(mag, min=zero_threshold), torch.zeros_like(Z))
-        R = Z - a * Zn
-    elif kind == "poisson":
-        y = mag ** 2
-        floor = poisson_floor * y.amax(dim=(-2, -1), keepdim=True).clamp(min=1e-30)
-        R = 0.5 * Z * (1 - a ** 2 / torch.maximum(y, floor).clamp(min=1e-30))
-    else:
-        raise ValueError(kind)
-    return R if det_mask is None else R * det_mask
 
 
 # ----------------------------------------------------------------------------------------------- generalized simulator
@@ -394,11 +361,9 @@ class Schedule:
     p_per_cycle: int = 1         # probe updates per cycle
     final_s: int = 3             # final refinement S sweeps (reduced step)
     final_p: int = 1             # final refinement probe updates (reduced lr)
-    final_factor: float = 0.3    # step / learning-rate reduction in the final refinement
-    mu: float = 60.0             # S step (same parameterisation as the NumPy MU; analytic S update, and SGD default lr)
-    s_method: str = "autograd"   # S update: "autograd" (torch autograd + optimizer) or "analytic" (hand-written Eq. 22)
-    s_optimizer: str = "adam"    # autograd S update: "adam" or "sgd"
-    s_lr: float = 0.01           # autograd S learning rate (Adam; set <= 0 with SGD for auto lr); SGD uses eta / (2 mean|P|^2), the analytic step size, if s_lr <= 0
+    final_factor: float = 0.3    # S and probe learning-rate reduction in the final refinement
+    s_optimizer: str = "adam"    # S optimizer on the autograd gradient: "adam" or "sgd"
+    s_lr: float = 0.01           # S learning rate (SGD needs a much larger value than Adam, see the tests)
     probe_lr: float = 0.05       # probe learning rate in normalised units (1 = 1 rad at aperture edge).  With Adam each
                                  # step moves a coefficient by ~probe_lr whatever the gradient, so the total correction is
                                  # capped at ~probe_lr * (number of probe steps); see JointReconstructor.probe_step_budget
@@ -407,11 +372,10 @@ class Schedule:
                                  # step is invariant to the gradient scale); it bounds the step only with "sgd"
     reg_lambda: float = 0.0      # weight of the quadratic prior on the probe corrections
     loss: str = "amplitude"      # data term for both blocks: "amplitude" (Eq. 12) or "poisson" (Eq. 11)
-    chunk: int = 20              # measurements per minibatch (also the stale-S chunk of the S update)
+    chunk: int = 20              # measurements per minibatch (one optimizer step on S per chunk)
     probe_fraction: float = 1.0  # fraction of measurements used per probe gradient (random subset if < 1)
-    zero_threshold: float = 1e-12    # |Z| below this -> Z/|Z| set to 0 (as the NumPy code)
-    poisson_floor: float = 1e-6      # Poisson: y clamped at this fraction of the pattern's max predicted y (S residual,
-                                     # autograd S loss and probe loss; the reported Poisson NLL stays exact)
+    poisson_floor: float = 1e-6      # Poisson: y clamped inside the log at this fraction of the pattern's max predicted y
+                                     # (S and probe losses; the reported Poisson NLL stays exact)
     det_mask: str = "full"       # "full" detector or "bf" (bright-field disk only, loss and residual masked)
     seed: int = 0
 
@@ -439,7 +403,6 @@ class JointReconstructor:
         self.S_opt = None                                       # lazily built optimizer for the autograd S update
         meas = self.meas
         self.nb = self.S.shape[0]
-        self.eta, self.ncov = coverage_eta(meas, geom, self.nb, schedule.mu)
         self.pos_A = meas.pos.to(torch.float64) * geom.dr
         self.pos_list = meas.pos.cpu().tolist()                 # host copy for the window loop (no device syncs)
         self.sum_a2 = float((meas.amp.double() ** 2).sum())
@@ -480,39 +443,19 @@ class JointReconstructor:
     def coeff_snap(self, it):
         self.history["coeffs"].append((it, self.probe.coefficients().detach().cpu().numpy().tolist()))
 
-    # -- Stage A: S update (normalised amplitude flow == preconditioned Eq. 22; Poisson residual = Eq. 20)
-    @torch.no_grad()
-    def s_update_sweep(self, eta):
-        S, K, h = self.S, self.geom.K, self.geom.K // 2
-        J, tot = self.meas.J, 0.0
-        illum_all = self.illumination(slice(None))
-        thr = self.sch.zero_threshold
-        for c0 in range(0, J, self.sch.chunk):
-            idx = slice(c0, min(c0 + self.sch.chunk, J))
-            il, pos, a = illum_all[idx], self.meas.pos[idx], self.meas.amp[idx]
-            Z = forward_chunk(gather_windows(S, pos, K), il)
-            tot += float(((Z.abs() - a) ** 2).sum())        # stale running estimate (S before this chunk's update)
-            resid = s_residual(Z, a, self.sch.loss, thr, self.sch.poisson_floor, self.det_mask)
-            R = torch.fft.ifft2(resid, norm="ortho").to(S.dtype)
-            for j, (y0, x0) in enumerate(self.pos_list[idx]):
-                coef = (eta * torch.conj(il[j]) / torch.abs(il[j]) ** 2).to(S.dtype)
-                S[:, y0 - h:y0 + h, x0 - h:x0 + h] -= coef[:, None, None] * R[j][None]
-        return tot / self.sum_a2
-
-    # -- Stage A (autograd): same minibatch structure as above, but the gradient comes from torch autograd on the
-    #    Eq. 9 forward model + data loss and the step is taken by a torch.optim optimizer on S itself.
+    # -- Stage A: S update.  Minibatches of `chunk` measurements; the gradient comes from torch autograd on the Eq. 9
+    #    forward model + data loss (Eq. 11/12), the step is taken by a torch.optim optimizer on S itself (probe fixed).
     def make_s_opt(self):
         sch = self.sch
         self.S.requires_grad_(True)
         if sch.s_optimizer == "adam":
             return torch.optim.Adam([self.S], lr=sch.s_lr)
-        if sch.s_lr > 0:
-            lr = sch.s_lr
-        else:                                                   # torch grad = 2 dL/dS*; Eq. 22 also divides by |P|^2
-            lr = 0.5 * self.eta / float((self.illumination(slice(None)).abs() ** 2).mean())
-        return torch.optim.SGD([self.S], lr=lr)
+        if sch.s_optimizer == "sgd":
+            return torch.optim.SGD([self.S], lr=sch.s_lr)
+        raise ValueError(sch.s_optimizer)
 
-    def s_update_sweep_autograd(self, scale=1.0):
+    def s_update_sweep(self, scale=1.0):
+        """One pass over all measurements; `scale` multiplies the S learning rate (final refinement)."""
         if self.S_opt is None:
             self.S_opt = self.make_s_opt()
         opt, K, J = self.S_opt, self.geom.K, self.meas.J
@@ -530,7 +473,7 @@ class JointReconstructor:
             a = self.meas.amp[idx]
             loss = chunk_loss(Z, a, self.sch.loss, counts, det_mask=self.det_mask, poisson_floor=self.sch.poisson_floor)
             loss.backward()
-            tot += float(((Z.detach().abs() - a) ** 2).sum())   # stale running estimate, as in the analytic sweep
+            tot += float(((Z.detach().abs() - a) ** 2).sum())   # running estimate (S before this chunk's step)
             opt.step()
         return tot / self.sum_a2
 
@@ -605,12 +548,9 @@ class JointReconstructor:
             return torch.optim.Adam([self.probe.theta], lr=lr)
         return torch.optim.SGD([self.probe.theta], lr=lr)
 
-    def _s(self, it, eta):
+    def _s(self, it, scale=1.0):
         t0 = time.time()
-        if self.sch.s_method == "autograd":
-            loss = self.s_update_sweep_autograd(eta / self.eta)  # eta carries only the final-refinement factor here
-        else:
-            loss = self.s_update_sweep(eta)
+        loss = self.s_update_sweep(scale)
         h = self.history
         h["s_iter"].append(it); h["s_loss"].append(loss); h["s_time"].append(time.time() - t0)
         self.log(f"  S iter {it:3d}  rel. amplitude loss {loss:.5f}  ({h['s_time'][-1]:.1f}s)")
@@ -633,10 +573,10 @@ class JointReconstructor:
                 self.log(f"  probe step {c + 1}: loss {l:.5f}")
         else:
             for _ in range(sch.warmup_s):
-                it += 1; self._s(it, self.eta)
+                it += 1; self._s(it)
             for c in range(sch.cycles):
                 for _ in range(sch.s_per_cycle):
-                    it += 1; self._s(it, self.eta)
+                    it += 1; self._s(it)
                 if sch.mode == "joint":
                     for _ in range(sch.p_per_cycle):
                         l = self.probe_step(opt, it)
@@ -646,7 +586,7 @@ class JointReconstructor:
             for g in opt.param_groups:
                 g["lr"] = sch.probe_lr * sch.final_factor
             for _ in range(sch.final_s):
-                it += 1; self._s(it, self.eta * sch.final_factor)
+                it += 1; self._s(it, sch.final_factor)
             if sch.mode == "joint":
                 for _ in range(sch.final_p):
                     self.probe_step(opt, it)
@@ -657,7 +597,7 @@ class JointReconstructor:
         self.history["eval"].append((it, self.final_eval))
 
     def summary(self):
-        return dict(runtime_s=self.runtime, peak_memory_mb=self.peak_mb, device=str(self.device), eta=self.eta, ncov=self.ncov,
+        return dict(runtime_s=self.runtime, peak_memory_mb=self.peak_mb, device=str(self.device),
                     final_loss=self.final_eval["rel_amplitude_loss"], final_eval=self.final_eval,
                     last_sweep_loss=self.history["s_loss"][-1] if self.history["s_loss"] else None,
                     schedule=asdict(self.sch), coefficients=self.probe.as_dicts())

@@ -113,29 +113,6 @@ def test_depth_sections_match_existing(small):
     assert np.abs(out - ref).max() / np.abs(ref).max() < 1e-5
 
 
-# ------------------------------------------------------------------------- regression vs NumPy reconstruction
-def test_torch_fixed_probe_matches_numpy(small):
-    g = small
-    layers = random_layers(g)
-    dps, coords = m.simulate(layers, np.random.default_rng(11))
-    S0 = jp.vacuum_smatrix(g).numpy()
-    rng = np.random.default_rng(5)                 # perturbed start: removes the arbitrary phase of numerically-zero |Z|
-    S0 = (S0 + 0.05 * (rng.normal(size=S0.shape) + 1j * rng.normal(size=S0.shape))).astype(np.complex64)
-    m.NITER = 3
-    logs = []
-    S_np, _, loss_np = m.reconstruct(dps, coords, logs.append, S_init=S0)
-    meas = jp.Measurements.from_dps(dps, coords, m.DOSE)
-    by, bx = g.beams()
-    nominal = pa.coefficient_matrix([{"C10": df} for df in m.DEFOCI])
-    probe = pa.AberrationProbe(by / g.LW, bx / g.LW, g.lam, g.alpha, nominal, norm=1 / math.sqrt(len(by) * g.K ** 2))
-    sch = jp.Schedule(mode="s_only", s_method="analytic", warmup_s=3, cycles=0, final_s=0, mu=m.MU)
-    rec = jp.JointReconstructor(meas, g, probe, sch, S_init=S0, log=lambda *_: None)
-    S_t = rec.run().numpy()
-    rel = np.linalg.norm(S_t - S_np) / np.linalg.norm(S_np - S0)
-    assert rel < 1e-4, rel
-    np.testing.assert_allclose(rec.history["s_loss"], loss_np, rtol=1e-4)
-
-
 # ------------------------------------------------------------------------- gradient checks (float64)
 def _tiny_problem(g, seed=0):
     layers = random_layers(g, seed)
@@ -179,7 +156,7 @@ def test_probe_gradients_autograd_vs_finite_difference(small, kind):
     assert torch.all(grad[0] == 0)                   # reference dataset is not trainable
 
 
-def test_s_gradients_autograd_vs_fd_and_adjoint(small):
+def test_s_gradients_autograd_vs_finite_difference(small):
     g = small
     meas, probe, S = _tiny_problem(g, seed=2)
     Sv = S.clone().requires_grad_(True)
@@ -201,107 +178,11 @@ def test_s_gradients_autograd_vs_fd_and_adjoint(small):
             fd = (float(_loss_S(Sp, il, meas, g)) - float(_loss_S(Sm_, il, meas, g))) / (2 * h)
             ag = float(G[b, y, x].real if part == "re" else G[b, y, x].imag)
             assert abs(fd - ag) <= 1e-5 * max(1.0, abs(fd)), (part, fd, ag)
-    # analytic adjoint (Pelz Eq. 22 / A3): dL/dS* = sum_j C_j^T [conj(P_j) F^-1(Z - a Z/|Z|)]; torch grad = 2 dL/dS*
-    with torch.no_grad():
-        Zd = Z.detach(); a = meas.amp.double()
-        R = torch.fft.ifft2(Zd - a * Zd / Zd.abs(), norm="ortho")
-        adj = torch.zeros_like(S); h = g.K // 2
-        for j, (y0, x0) in enumerate(meas.pos.tolist()):
-            adj[:, y0 - h:y0 + h, x0 - h:x0 + h] += torch.conj(il[j])[:, None, None] * R[j][None]
-    assert torch.allclose(G, 2 * adj, rtol=1e-9, atol=1e-12)
 
 
 def _loss_S(S, il, meas, g):
     Z = jp.forward_chunk(jp.gather_windows(S, meas.pos, g.K), il)
     return jp.chunk_loss(Z, meas.amp.double())
-
-
-# ------------------------------------------------------------------------- residuals / S update for every data term
-def _bf_mask(g):
-    q = np.fft.fftfreq(g.K, g.dr)
-    return torch.as_tensor(((q[:, None] ** 2 + q[None, :] ** 2) <= (g.alpha / g.lam) ** 2).astype(np.float64))
-
-
-@pytest.mark.parametrize("kind,mask", [("amplitude", False), ("amplitude", True), ("poisson", False), ("poisson", True)])
-def test_residual_is_wirtinger_gradient_of_loss(small, kind, mask):
-    """s_residual = dD/dZ* (amplitude) and dD/dZ* / (2N) (Poisson), with and without a bright-field detector mask.
-    torch's complex gradient is 2 dD/dZ*."""
-    g = small
-    rng = np.random.default_rng(3)
-    Z = torch.as_tensor(rng.normal(size=(6, g.K, g.K)) + 1j * rng.normal(size=(6, g.K, g.K))).requires_grad_(True)
-    a = torch.as_tensor(np.abs(rng.normal(size=(6, g.K, g.K))))
-    a[0, :3] = 0.0                                   # zero-count pixels
-    N = 37.0
-    m_ = _bf_mask(g) if mask else None
-    jp.chunk_loss(Z, a, kind, counts=N, det_mask=m_).backward()
-    R = jp.s_residual(Z.detach(), a, kind, det_mask=m_)
-    scale = 2.0 if kind == "amplitude" else 4.0 * N
-    assert torch.allclose(R, Z.grad / scale, rtol=1e-10, atol=1e-12)
-
-
-def test_poisson_residual_low_counts_and_near_zero_intensity(small):
-    """Near-zero predicted intensity: the clamp keeps the residual finite and equal to the clamped formula; zero
-    counts give R = Z/2 (pure intensity decrease); away from the floor the residual is the exact gradient."""
-    g = small
-    Z = torch.full((1, g.K, g.K), 1.0 + 0.0j, dtype=torch.complex128)
-    Z[0, 0, 0] = 1e-9                                 # y = 1e-18 << floor = 1e-6 * max y
-    Z[0, 0, 1] = 1e-2                                 # y = 1e-4 > floor: exact
-    a = torch.full((1, g.K, g.K), 0.5, dtype=torch.float64)
-    a[0, 1, :] = 0.0                                  # zero counts
-    R = jp.s_residual(Z, a, "poisson", poisson_floor=1e-6)
-    assert torch.isfinite(R).all()
-    assert torch.allclose(R[0, 0, 0], 0.5 * Z[0, 0, 0] * (1 - 0.25 / 1e-6))
-    assert torch.allclose(R[0, 0, 1], 0.5 * Z[0, 0, 1] * (1 - 0.25 / 1e-4))
-    assert torch.allclose(R[0, 1, 5], 0.5 * Z[0, 1, 5])
-    # near convergence the Poisson step equals the amplitude step (same MU for both losses)
-    Zc = torch.full((1, g.K, g.K), 0.5 * (1 + 1e-4) + 0j, dtype=torch.complex128)
-    ac = torch.full((1, g.K, g.K), 0.5, dtype=torch.float64)
-    Ra, Rp = jp.s_residual(Zc, ac, "amplitude"), jp.s_residual(Zc, ac, "poisson")
-    assert torch.allclose(Rp, Ra, rtol=2e-4)
-
-
-@pytest.mark.parametrize("kind,det", [("amplitude", "full"), ("poisson", "full"), ("amplitude", "bf"), ("poisson", "bf")])
-def test_s_update_is_preconditioned_gradient_step(small, kind, det):
-    """One S sweep with a single chunk == S - eta/|Psi|^2 * dD/dS* (autograd), for both losses and the BF mask.
-    This checks the hand-written Poisson/masked S update end to end (residual + adjoint + preconditioner).
-    The Poisson intensity floor is disabled here (poisson_floor=0) so the update must equal the exact gradient; the
-    floor itself is tested in test_poisson_floor_only_changes_clamped_pixels."""
-    g = small
-    meas, probe, S = _tiny_problem(g, seed=4)
-    S32 = S.to(torch.complex64)
-    sch = jp.Schedule(mode="s_only", s_method="analytic", loss=kind, det_mask=det, chunk=meas.J, warmup_s=1, cycles=0, final_s=0,
-                      poisson_floor=0.0)
-    rec = jp.JointReconstructor(meas, g, probe, sch, S_init=S32, log=lambda *_: None)
-    rec.s_update_sweep(rec.eta)
-    dS = (rec.S - S32).to(torch.complex128)
-    Sv = S32.to(torch.complex128).requires_grad_(True)
-    with torch.no_grad():
-        il = probe.illumination(meas.d_idx, meas.pos.double() * g.dr).to(Sv.dtype)
-    N = 50.0
-    Z = jp.forward_chunk(jp.gather_windows(Sv, meas.pos, g.K), il)
-    jp.chunk_loss(Z, meas.amp.double(), kind, counts=N, det_mask=rec.det_mask.double() if det == "bf" else None).backward()
-    scale = 2.0 if kind == "amplitude" else 4.0 * N
-    expected = -rec.eta / probe.norm ** 2 * Sv.grad / scale
-    rel = float((dS - expected).norm() / expected.norm())
-    assert rel < 2e-4, rel
-
-
-def test_poisson_floor_only_changes_clamped_pixels(small):
-    """With the default floor the Poisson residual differs from the exact gradient only where y < floor, and there
-    it is bounded by |Z| I / floor / 2 instead of diverging like I / y."""
-    g = small
-    meas, probe, S = _tiny_problem(g, seed=4)
-    with torch.no_grad():
-        il = probe.illumination(meas.d_idx, meas.pos.double() * g.dr).to(S.dtype)
-        Z = jp.forward_chunk(jp.gather_windows(S, meas.pos, g.K), il)
-    a = meas.amp.double()
-    y = Z.abs() ** 2
-    clamped = y < 1e-6 * y.amax(dim=(-2, -1), keepdim=True)
-    R_exact = jp.s_residual(Z, a, "poisson", poisson_floor=0.0)
-    R_floor = jp.s_residual(Z, a, "poisson", poisson_floor=1e-6)
-    assert clamped.any()                                         # this problem has at least one near-dark pixel
-    assert torch.equal(R_exact[~clamped], R_floor[~clamped])
-    assert (R_floor[clamped].abs() < R_exact[clamped].abs()).all()
 
 
 def test_poisson_loss_floor_bounds_gradient(small):
@@ -352,7 +233,7 @@ def test_final_loss_is_loss_of_returned_state():
     g, nominal, true, S_true, meas, by, bx, norm = _smoke_setup()
     probe = pa.AberrationProbe(by / g.LW, bx / g.LW, g.lam, g.alpha, nominal, trainable=["C10"], norm=norm)
     sch = jp.Schedule(mode="joint", warmup_s=2, cycles=2, s_per_cycle=1, p_per_cycle=1, final_s=1, final_p=1,
-                      mu=20.0, probe_lr=0.05)
+                      probe_lr=0.05)
     rec = jp.JointReconstructor(meas, g, probe, sch, log=lambda *_: None)
     S = rec.run()
     with torch.no_grad():
@@ -382,7 +263,7 @@ def test_cuda_run_matches_cpu():
     for dev in ("cpu", "cuda"):
         probe = pa.AberrationProbe(by / g.LW, bx / g.LW, g.lam, g.alpha, nominal, trainable=["C10", "C12a", "C12b"], norm=norm)
         sch = jp.Schedule(mode="joint", warmup_s=2, cycles=2, s_per_cycle=2, p_per_cycle=1, final_s=1, final_p=1,
-                          mu=20.0, probe_lr=0.05, probe_fraction=1.0)
+                          probe_lr=0.05, probe_fraction=1.0)
         rec = jp.JointReconstructor(meas, g, probe, sch, device=dev, log=lambda *_: None)
         S = rec.run()
         assert S.device.type == dev and probe.theta.device.type == dev
@@ -432,7 +313,7 @@ def test_joint_smoke_runs_and_reduces_loss():
     g, nominal, true, S_true, meas, by, bx, norm = _smoke_setup()
     probe = pa.AberrationProbe(by / g.LW, bx / g.LW, g.lam, g.alpha, nominal, trainable=["C10", "C12a", "C12b"], norm=norm)
     sch = jp.Schedule(mode="joint", warmup_s=5, cycles=8, s_per_cycle=3, p_per_cycle=1, final_s=2, final_p=1,
-                      mu=20.0, probe_lr=0.05)
+                      probe_lr=0.05)
     rec = jp.JointReconstructor(meas, g, probe, sch, log=lambda *_: None)
     rec.run()
     h = rec.history
@@ -444,10 +325,10 @@ def test_joint_smoke_runs_and_reduces_loss():
 
 @pytest.mark.parametrize("opt", ["adam", "sgd"])
 def test_autograd_s_update_reduces_loss(opt):
-    """Autograd + torch.optim S update (default s_method) drives the data loss down on the smoke problem."""
+    """Autograd + torch.optim S update drives the data loss down on the smoke problem (Adam and plain SGD)."""
     g, nominal, true, S_true, meas, by, bx, norm = _smoke_setup()
     probe = pa.AberrationProbe(by / g.LW, bx / g.LW, g.lam, g.alpha, nominal, trainable=[], norm=norm)
-    sch = jp.Schedule(mode="s_only", s_optimizer=opt, s_lr=0.01 if opt == "adam" else 0.0, warmup_s=6, cycles=0, final_s=0, mu=20.0)
+    sch = jp.Schedule(mode="s_only", s_optimizer=opt, s_lr=0.01 if opt == "adam" else 80.0, warmup_s=6, cycles=0, final_s=0)
     rec = jp.JointReconstructor(meas, g, probe, sch, log=lambda *_: None)
     S = rec.run()
     assert not S.requires_grad

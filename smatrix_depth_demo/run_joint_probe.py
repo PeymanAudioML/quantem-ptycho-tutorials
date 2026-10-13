@@ -1,9 +1,7 @@
 """Reproducible experiments for joint S-matrix / probe-aberration reconstruction (see README).
 
-  python run_joint_probe.py bench                         # timing + PyTorch vs NumPy regression on the full-size data
   python run_joint_probe.py exp --sample reduced --config B --variants fixed,joint,oracle --seeds 0,1,2,3,4
   python run_joint_probe.py exp --sample layers3 --config A --variants fixed,joint
-  python make_joint_figs.py                               # tables + figures from results_joint/
 
 Samples: layers3 / six_phi1p5 / poly reuse the existing structures (results*/layers_and_data.npz); reduced is a smaller
 3-layer random-atom sample (128 x 128 S grid, same 10.4 A scan field) used for multi-seed statistics; reduced_s{n} sets
@@ -224,37 +222,9 @@ def run_one(sname, config, variant, seed, sch_kw, dose, trainable, tag="", devic
     return res
 
 
-# --------------------------------------------------------------------------------------------- bench / regression
-def bench():
-    """Full-size PyTorch fixed-probe reconstruction vs the NumPy implementation on the existing 3-layer data."""
-    import smatrix_depth_demo as m
-    d = np.load(os.path.join(HERE, "results", "layers_and_data.npz"))
-    g = jp.STANDARD
-    nominal = pa.coefficient_matrix([{"C10": df} for df in m.DEFOCI], NAMES)
-    out = {}
-    for start in ("vacuum", "perturbed"):
-        S0 = jp.vacuum_smatrix(g).numpy()
-        if start == "perturbed":
-            rng = np.random.default_rng(5)
-            S0 = (S0 + 0.05 * (rng.normal(size=S0.shape) + 1j * rng.normal(size=S0.shape))).astype(np.complex64)
-        m.NITER, m.MU = 2, 60.0
-        t0 = time.time(); S_np, _, l_np = m.reconstruct(d["dps"], d["coords"], print, S_init=S0); t_np = time.time() - t0
-        meas = jp.Measurements.from_dps(d["dps"], d["coords"], 2e5)
-        rec = jp.JointReconstructor(meas, g, make_probe(g, nominal, []),
-                                    jp.Schedule(mode="s_only", s_method="analytic", warmup_s=2, cycles=0, final_s=0, mu=60.0), S_init=S0)
-        S_t = rec.run().cpu().numpy()
-        rel = float(np.linalg.norm(S_t - S_np) / np.linalg.norm(S_np - S0))
-        out[start] = dict(numpy_loss=list(map(float, l_np)), torch_loss=rec.history["s_loss"], rel_S_diff=rel,
-                          torch_final_eval=rec.final_eval,
-                          numpy_time_s=t_np, torch_time_s=rec.runtime, peak_mb=rec.peak_mb)
-        print(start, json.dumps(out[start]), flush=True)
-    os.makedirs(OUT, exist_ok=True)
-    json.dump(out, open(os.path.join(OUT, "bench_regression.json"), "w"), indent=1)
-
-
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("cmd", choices=["bench", "exp"])
+    ap.add_argument("cmd", choices=["exp"])
     ap.add_argument("--sample", default="reduced")
     ap.add_argument("--config", default="B")
     ap.add_argument("--variants", default="fixed,joint,oracle")
@@ -269,11 +239,7 @@ def main():
     ap.add_argument("--save-S", action="store_true", help="save the recovered S-matrix (complex64 .npy, ~150 MB) in results_joint/cache/")
     a = ap.parse_args()
     torch.set_num_threads(a.threads)
-    if a.cmd == "bench":
-        return bench()
-    # s_method="analytic": the hand-written Eq. 22 S update (MU = 60) used for every result in JOINT_PROBE_REPORT.md;
-    # pass --sched '{"s_method": "autograd"}' for the torch-optimizer S update (Schedule default)
-    sch_kw = dict(s_method="analytic", warmup_s=5, cycles=8, s_per_cycle=3, p_per_cycle=2, final_s=3, final_p=1, mu=60.0,
+    sch_kw = dict(warmup_s=5, cycles=8, s_per_cycle=3, p_per_cycle=2, final_s=3, final_p=1,
                   probe_lr=0.3, probe_fraction=0.34, grad_clip=1.0)
     sch_kw.update(json.loads(a.sched))
     for seed in [int(x) for x in a.seeds.split(",")]:
