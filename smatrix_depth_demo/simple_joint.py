@@ -4,7 +4,7 @@ One file, three steps:
 
     setup = Setup(energy_ev=300e3, alpha=20e-3, dr=0.2, K=64, Y=128)       # microscope + sampling
     model = JointModel(setup, positions, dataset_index, nominal)          # unknowns: S and probe aberrations
-    fit(model, amplitudes)                                                 # gradient descent (autograd + Adam)
+    fit(model, amplitudes)                                                 # joint gradient descent (autograd + Adam)
     volume = refocus(model.S, setup, depths)                               # complex exit wave at each depth
 
 Forward model (Pelz et al., PRR 3, 023159 (2021), Eq. 9):
@@ -168,20 +168,28 @@ def prepare_data(dps, positions, device="cpu"):
 
 
 # ------------------------------------------------------------------------------------------------ optimisation
-def fit(model, amp, epochs=40, warmup=8, batch=16, lr_S=0.02, lr_probe=0.05, probe_steps=5, seed=0, log=print):
-    """Joint S + probe optimisation by alternating gradient descent (Pelz Algorithm 1, with Adam).
+def fit(model, amp, epochs=40, warmup=8, batch=16, lr_S=0.02, lr_probe=None, mode="simultaneous", probe_steps=5,
+        seed=0, log=print):
+    """Joint S + probe optimisation by gradient descent (autograd + Adam).  Returns the loss history (per epoch).
 
-    Each epoch:
-      1. S step: one pass over all patterns in random minibatches; Adam on S with the probe fixed.
-      2. probe step (after `warmup` S-only epochs): `probe_steps` full-batch Adam steps on the aberration
-         corrections with S fixed.
-    Both learning rates follow a cosine decay to 5 % over the epochs.  Returns the loss history.
+    The first `warmup` epochs fit S only (nominal probe).  Afterwards, per `mode`:
+      "simultaneous": every minibatch updates S and the probe together from the same gradient (default; no extra
+                      cost, many small probe steps).  lr_probe default 0.005.
+      "alternating":  Pelz Algorithm 1 - an S pass with the probe fixed, then `probe_steps` full-batch probe steps
+                      with S fixed.  lr_probe default 0.05.
+    Learning rates are in Adam units: S per complex entry, probe in rad at the aperture edge.  Both follow a cosine
+    decay to 5 % over the epochs.
     """
+    if mode not in ("simultaneous", "alternating"):
+        raise ValueError(mode)
+    if lr_probe is None:
+        lr_probe = 0.005 if mode == "simultaneous" else 0.05
     gen = torch.Generator().manual_seed(seed)
     J = amp.shape[0]
     a2 = float((amp.double() ** 2).sum())
     opt_S = torch.optim.Adam([model.S], lr=lr_S)
     opt_P = torch.optim.Adam([model.dC], lr=lr_probe)
+    train_probe = bool(model.mask.any())
     history = []
     for ep in range(epochs):
         f = 0.05 + 0.95 * 0.5 * (1 + math.cos(math.pi * ep / max(1, epochs - 1)))   # cosine decay
@@ -189,30 +197,33 @@ def fit(model, amp, epochs=40, warmup=8, batch=16, lr_S=0.02, lr_probe=0.05, pro
             g["lr"] = lr_S * f
         for g in opt_P.param_groups:
             g["lr"] = lr_probe * f
+        joint_now = train_probe and ep >= warmup
 
-        # 1. S step (probe fixed)
+        # pass over all patterns in random minibatches
         total = 0.0
         for idx in torch.randperm(J, generator=gen).to(amp.device).split(batch):
+            both = joint_now and mode == "simultaneous"
             opt_S.zero_grad()
-            loss = amplitude_loss(model(idx, fixed="probe"), amp[idx])
+            opt_P.zero_grad()
+            loss = amplitude_loss(model(idx, fixed="none" if both else "probe"), amp[idx])
             loss.backward()
             opt_S.step()
+            if both:
+                opt_P.step()
             total += float(loss)
         msg = f"epoch {ep + 1:3d}  loss {total / a2:.6f}"
 
-        # 2. probe step (S fixed), full batch
-        if ep >= warmup and model.mask.any():
+        # alternating mode: full-batch probe steps with S fixed
+        if joint_now and mode == "alternating":
             for _ in range(probe_steps):
                 opt_P.zero_grad()
-                ploss = 0.0
                 for idx in torch.arange(J, device=amp.device).split(batch):
-                    loss = amplitude_loss(model(idx, fixed="S"), amp[idx]) / a2
-                    loss.backward()
-                    ploss += float(loss)
+                    (amplitude_loss(model(idx, fixed="S"), amp[idx]) / a2).backward()
                 opt_P.step()
+        if joint_now:
             dC = (model.coefficients() - model.nominal).detach().cpu().numpy()
-            msg += f"  probe loss {ploss:.6f}  dC [A] " + np.array2string(dC[:, model.mask.any(0).cpu().numpy()],
-                                                                         precision=2, suppress_small=True).replace("\n", "")
+            msg += "  dC [A] " + np.array2string(dC[:, model.mask.any(0).cpu().numpy()], precision=2,
+                                                 suppress_small=True).replace("\n", "")
         history.append(total / a2)
         log(msg)
     return history

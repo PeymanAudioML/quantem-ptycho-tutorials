@@ -85,52 +85,58 @@ def layer_depths(volume, layers, depths, crop):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--device", default="cpu")
-    ap.add_argument("--epochs", type=int, default=40)
-    ap.add_argument("--step", type=int, default=2, help="scan step in pixels (smaller = more overlap = better probe)")
-    ap.add_argument("--dose", type=float, default=1e5, help="electrons per pattern (0 = noiseless)")
     ap.add_argument("--threads", type=int, default=4)
+    ap.add_argument("--epochs", type=int, default=40)
+    ap.add_argument("--mode", default="simultaneous", choices=["simultaneous", "alternating"])
+    ap.add_argument("--variants", default="fixed,joint,true", help="comma list of fixed / joint / true")
+    # geometry: 300 kV, 20 mrad; window K x K px of dr A, S grid Y x Y px
+    ap.add_argument("--dr", type=float, default=0.3)
+    ap.add_argument("--K", type=int, default=40)
+    ap.add_argument("--Y", type=int, default=80)
+    ap.add_argument("--step", type=int, default=1, help="scan step [px]; overlap is what makes the probe findable")
+    ap.add_argument("--dose", type=float, default=1e5, help="electrons per pattern (0 = noiseless)")
     a = ap.parse_args()
     torch.set_num_threads(a.threads)
 
-    setup = sj.Setup(energy_ev=300e3, alpha=20e-3, dr=0.3, K=32, Y=64)
-    # scan: whole windows inside the S grid
+    setup = sj.Setup(energy_ev=300e3, alpha=20e-3, dr=a.dr, K=a.K, Y=a.Y)
     s0 = setup.K // 2
-    grid = np.arange(s0, setup.Y - s0 + 1, a.step)
+    grid = np.arange(s0, setup.Y - s0 + 1, a.step)                       # whole windows inside the S grid
     positions = np.stack(np.meshgrid(grid, grid, indexing="ij"), -1)
-    # sample: 3 layers at 30 / 100 / 170 A in a 200 A slab
-    layers, layer_z, thickness = make_layers(setup), [30.0, 100.0, 170.0], 200.0
-    # three datasets at set defoci; datasets 1 and 2 have unknown defocus + astigmatism errors
+    # sample: 3 layers at 30 / 150 / 270 A in a 300 A slab (the axial response at 20 mrad is ~100 A wide)
+    layers, layer_z, thickness = make_layers(setup), [30.0, 150.0, 270.0], 300.0
+    # three datasets at set defoci (focus 250 / 150 / 50 A inside the sample); 1 and 2 have unknown errors
     nominal = np.zeros((3, len(sj.NAMES)))
-    nominal[:, 0] = [-100.0, -50.0, 0.0]
+    nominal[:, 0] = [-250.0, -150.0, -50.0]
     true = nominal.copy()
     true[1, :3] += [12.0, 6.0, -4.0]           # dC10, dC12a, dC12b [A]
     true[2, :3] += [-10.0, -3.0, 5.0]
 
     t0 = time.time()
     dps = simulate(setup, layers, layer_z, thickness, true, positions, dose=a.dose, device=a.device)
-    print(f"simulated {dps.shape} in {time.time() - t0:.0f}s")
-
     amp, pos, didx = sj.prepare_data(dps, positions, device=a.device)
+    nb = len(setup.beams()[0])
+    ratio = amp.numel() / (2 * nb * setup.Y ** 2)
+    print(f"simulated {dps.shape} in {time.time() - t0:.0f}s; {nb} beams; measurements / unknowns = {ratio:.2f}")
+
+    variants = {"fixed": (nominal, ()), "joint": (nominal, ("C10", "C12a", "C12b")), "true": (true, ())}
+    depths = np.arange(0.0, thickness + 1e-6, 5.0)
+    crop = (slice(s0, setup.Y - s0), slice(s0, setup.Y - s0))
     results = {}
-    for name, init_probe, train in (("fixed nominal probe", nominal, ()),
-                                     ("joint (probe refined)", nominal, ("C10", "C12a", "C12b")),
-                                     ("true probe (reference)", true, ())):
-        print(f"\n=== {name}")
-        model = sj.JointModel(setup, pos, didx, init_probe, trainable=train, device=a.device)
+    for name in a.variants.split(","):
+        init, train = variants[name]
+        print(f"\n=== {name} probe")
+        model = sj.JointModel(setup, pos, didx, init, trainable=train, device=a.device)
         t0 = time.time()
-        hist = sj.fit(model, amp, epochs=a.epochs, log=lambda m: print(m) if name.startswith("joint") else None)
+        hist = sj.fit(model, amp, epochs=a.epochs, mode=a.mode, log=print if name == "joint" else (lambda m: None))
         est = model.coefficients().detach().cpu().numpy()
-        depths = np.arange(0.0, thickness + 1e-6, 5.0)
-        vol = sj.refocus(model.S, setup, depths)
-        crop = (slice(s0, setup.Y - s0), slice(s0, setup.Y - s0))
-        found = layer_depths(vol, layers, depths, crop)
+        found = layer_depths(sj.refocus(model.S, setup, depths, device=a.device), layers, depths, crop)
         results[name] = (hist[-1], est, found, time.time() - t0)
 
     print("\n================ summary")
     print("true relative errors [A] (C10, C12a, C12b):", (true - nominal)[1:, :3].tolist())
     for name, (loss, est, found, t) in results.items():
-        err = np.abs(est - true)[1:, :3]
-        print(f"{name:24s} loss {loss:.6f}  max |C - C_true| {err.max():5.2f} A  "
+        err = (est - true)[1:, :3]
+        print(f"{name:6s} loss {loss:.6f}  C - C_true [A] {np.round(err, 2).tolist()}  "
               f"layer depths {[f'{z:.0f}' for z, _ in found]} (true {layer_z})  r {[f'{r:.2f}' for _, r in found]}  {t:.0f}s")
 
 
