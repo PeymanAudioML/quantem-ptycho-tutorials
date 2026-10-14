@@ -16,3 +16,7 @@ results_joint/logs/
 results_m0/*.npy
 results_m1/*.npy
 results_m2/*.npy
+results_m3_T*/*.npy
+results_contrast/*/*.npy
+# contrast-scan per-run summaries are committed with the final report (git add -f)
+results_contrast/*/*.json
