@@ -253,3 +253,39 @@ def refocus(S, setup, depths, device=None):
         acc = torch.einsum("byx,by,bx->yx", Sq, py.to(S.dtype), px.to(S.dtype))
         out[i] = torch.fft.ifft2(acc * quad.to(S.dtype))
     return out.cpu().numpy()
+
+
+# ------------------------------------------------------------------------------------------------ depth estimation
+FOCUS_METRICS = {
+    "intensity_var": lambda w: (np.abs(w) ** 2).std(axis=(1, 2)) / (np.abs(w) ** 2).mean(axis=(1, 2)),   # intensity contrast
+    "phase_var": lambda w: np.angle(w).reshape(len(w), -1).var(axis=1),                                   # phase contrast
+    "gradient": lambda w: (np.abs(np.diff(np.abs(w), axis=1)).mean(axis=(1, 2))
+                           + np.abs(np.diff(np.abs(w), axis=2)).mean(axis=(1, 2))),                       # amplitude sharpness
+}
+
+
+def estimate_depths(S, setup, depths, metric="intensity_var", n_peaks=5, min_sep=None, roi=None):
+    """Candidate depths [A] where the refocused S-matrix is sharpest.  Returns (peak_depths, scores, curve).
+
+    Scans `refocus` over `depths`, scores each slice with `metric` (a FOCUS_METRICS key or a callable
+    (Z, Y, Y) complex -> (Z,)), and returns the `n_peaks` highest local maxima at least `min_sep` apart (default 5 steps),
+    best first.  `roi` = (y0, y1, x0, x1) restricts the score to part of the field (e.g. to avoid edge artefacts).
+    This is a heuristic: linear refocusing, one reconstruction, no uncertainty.  Absolute z is tied to the reference
+    dataset's calibration.  Compare peaks across several fits (different starts) to judge how stable they are.
+    """
+    depths = np.asarray(depths, float)
+    vol = refocus(S, setup, depths)
+    if roi is not None:
+        y0, y1, x0, x1 = roi
+        vol = vol[:, y0:y1, x0:x1]
+    fn = FOCUS_METRICS[metric] if isinstance(metric, str) else metric
+    curve = np.asarray(fn(vol), float)
+    gap = int(min_sep / abs(depths[1] - depths[0])) if min_sep else 5
+    is_max = np.r_[False, (curve[1:-1] > curve[:-2]) & (curve[1:-1] >= curve[2:]), False]
+    peaks = []
+    for i in np.flatnonzero(is_max)[np.argsort(-curve[is_max])]:
+        if all(abs(i - p) >= gap for p in peaks):
+            peaks.append(i)
+        if len(peaks) == n_peaks:
+            break
+    return depths[peaks], curve[peaks], curve
