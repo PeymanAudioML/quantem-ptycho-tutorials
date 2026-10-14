@@ -1,0 +1,280 @@
+{
+ "single": [
+  {
+   "templates": "pipeline",
+   "z0": 30.0,
+   "noise": 0,
+   "depth": 30.0,
+   "error": 0.0,
+   "residual": 0.000746287639010021
+  },
+  {
+   "templates": "pipeline",
+   "z0": 150.0,
+   "noise": 0,
+   "depth": 149.0,
+   "error": -1.0,
+   "residual": 0.0012777782479345377
+  },
+  {
+   "templates": "pipeline",
+   "z0": 270.0,
+   "noise": 0,
+   "depth": 269.0,
+   "error": -1.0,
+   "residual": 0.001654177694251058
+  },
+  {
+   "templates": "pipeline",
+   "z0": 30.0,
+   "noise": 1,
+   "depth": 30.0,
+   "error": 0.0,
+   "residual": 0.000912723084848818
+  },
+  {
+   "templates": "pipeline",
+   "z0": 150.0,
+   "noise": 1,
+   "depth": 149.0,
+   "error": -1.0,
+   "residual": 0.0010885212134151888
+  },
+  {
+   "templates": "pipeline",
+   "z0": 270.0,
+   "noise": 1,
+   "depth": 270.0,
+   "error": 0.0,
+   "residual": 0.0015851940913361449
+  },
+  {
+   "templates": "exact",
+   "z0": 30.0,
+   "noise": 0,
+   "depth": 30.0,
+   "error": 0.0,
+   "residual": 0.03831351045510489
+  },
+  {
+   "templates": "exact",
+   "z0": 150.0,
+   "noise": 0,
+   "depth": 144.0,
+   "error": -6.0,
+   "residual": 0.04315647808276028
+  },
+  {
+   "templates": "exact",
+   "z0": 270.0,
+   "noise": 0,
+   "depth": 267.0,
+   "error": -3.0,
+   "residual": 0.026160484510083903
+  },
+  {
+   "templates": "exact",
+   "z0": 30.0,
+   "noise": 1,
+   "depth": 30.0,
+   "error": 0.0,
+   "residual": 0.038651212880951524
+  },
+  {
+   "templates": "exact",
+   "z0": 150.0,
+   "noise": 1,
+   "depth": 144.0,
+   "error": -6.0,
+   "residual": 0.0457547676793722
+  },
+  {
+   "templates": "exact",
+   "z0": 270.0,
+   "noise": 1,
+   "depth": 268.0,
+   "error": -2.0,
+   "residual": 0.028280513157830537
+  }
+ ],
+ "floor": {
+  "pipeline": 0.003308355388502116,
+  "exact": 0.08631295616552057
+ },
+ "negative_control": {
+  "pipeline": [
+   {
+    "z0": 30.0,
+    "n_found": 1,
+    "depths": [
+     30.0
+    ]
+   },
+   {
+    "z0": 150.0,
+    "n_found": 1,
+    "depths": [
+     149.0
+    ]
+   },
+   {
+    "z0": 270.0,
+    "n_found": 1,
+    "depths": [
+     270.0
+    ]
+   }
+  ],
+  "exact": [
+   {
+    "z0": 30.0,
+    "n_found": 1,
+    "depths": [
+     30.0
+    ]
+   },
+   {
+    "z0": 150.0,
+    "n_found": 1,
+    "depths": [
+     144.0
+    ]
+   },
+   {
+    "z0": 270.0,
+    "n_found": 1,
+    "depths": [
+     268.0
+    ]
+   }
+  ]
+ },
+ "pairs": [
+  {
+   "templates": "pipeline",
+   "sep": 40.0,
+   "truth": [
+    130.0,
+    170.0
+   ],
+   "selected": [
+    151.0
+   ],
+   "n_found": 1,
+   "two_feature_fit": [
+    75.0,
+    153.0
+   ],
+   "res1": 0.0022637189514201077,
+   "res2": 0.0011424870414456943
+  },
+  {
+   "templates": "pipeline",
+   "sep": 80.0,
+   "truth": [
+    110.0,
+    190.0
+   ],
+   "selected": [
+    109.0,
+    190.0
+   ],
+   "n_found": 2,
+   "two_feature_fit": [
+    109.0,
+    190.0
+   ],
+   "res1": 0.042176416362521965,
+   "res2": 0.0005924563771155564
+  },
+  {
+   "templates": "pipeline",
+   "sep": 120.0,
+   "truth": [
+    90.0,
+    210.0
+   ],
+   "selected": [
+    88.0,
+    214.0
+   ],
+   "n_found": 2,
+   "two_feature_fit": [
+    88.0,
+    214.0
+   ],
+   "res1": 0.23593026251078952,
+   "res2": 0.0012931178165056154
+  },
+  {
+   "templates": "exact",
+   "sep": 40.0,
+   "truth": [
+    130.0,
+    170.0
+   ],
+   "selected": [
+    145.0
+   ],
+   "n_found": 1,
+   "two_feature_fit": [
+    116.0,
+    163.0
+   ],
+   "res1": 0.05334616740616463,
+   "res2": 0.0048914335676947295
+  },
+  {
+   "templates": "exact",
+   "sep": 80.0,
+   "truth": [
+    110.0,
+    190.0
+   ],
+   "selected": [
+    110.0,
+    182.0
+   ],
+   "n_found": 2,
+   "two_feature_fit": [
+    110.0,
+    182.0
+   ],
+   "res1": 0.11146317171223957,
+   "res2": 0.010687973091214206
+  },
+  {
+   "templates": "exact",
+   "sep": 120.0,
+   "truth": [
+    90.0,
+    210.0
+   ],
+   "selected": [
+    90.0,
+    208.0
+   ],
+   "n_found": 2,
+   "two_feature_fit": [
+    90.0,
+    208.0
+   ],
+   "res1": 0.32244873691218934,
+   "res2": 0.03568773952751242
+  }
+ ],
+ "reference_plane": [
+  {
+   "z0": 30.0,
+   "dz": 0.0
+  },
+  {
+   "z0": 150.0,
+   "dz": 0.0
+  },
+  {
+   "z0": 270.0,
+   "dz": 0.0
+  }
+ ]
+}
