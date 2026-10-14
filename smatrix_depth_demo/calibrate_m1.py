@@ -114,7 +114,7 @@ def analyze(args):
          "exact": np.array([sj.feature_response(sj.refocus(sj.exact_smatrix(cd.SETUP, [cd.cluster(cd.TEMPLATE_SEED)[0]],
                                                                             [z], cd.THICK), cd.SETUP, cd.DEPTHS,
                                                            device=dev), tw) for z in TEMPLATE_DEPTHS])}
-    kw = dict(refine=TEMPLATE_DEPTHS[1] - TEMPLATE_DEPTHS[0], step=1.0)
+    kw = dict(refine=TEMPLATE_DEPTHS[1] - TEMPLATE_DEPTHS[0], step=1.0, max_phase=args.max_phase)
     rs = responses([f"test_z{z:.0f}_n{n}" for n in TEST_NOISE for z in TEST_DEPTHS], w, dev)
     rp = responses([f"pair_d{d:.0f}" for d in PAIR_SEPS], w, dev)
 
@@ -181,6 +181,8 @@ def main():
     ap.add_argument("--batch", type=int, default=16, help="patterns per Adam step (16 = M0; keep for comparability)")
     ap.add_argument("--dose", type=float, default=1e5)
     ap.add_argument("--threads", type=int, default=4)
+    ap.add_argument("--max-phase", type=float, default=np.pi / 4,
+                    help="limit on the feature-amplitude phase [rad] against the z <-> T - z mirror (simple_joint)")
     a = ap.parse_args()
     torch.set_num_threads(a.threads)
     os.makedirs(OUT, exist_ok=True)

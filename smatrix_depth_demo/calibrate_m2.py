@@ -91,7 +91,7 @@ def analyze(a):
     dev = a.device
     _, w = cd.cluster(cd.TEST_SEED)
     grid = m1.TEMPLATE_DEPTHS
-    kw = dict(refine=grid[1] - grid[0], step=1.0, min_sep=a.min_sep)
+    kw = dict(refine=grid[1] - grid[0], step=1.0, min_sep=a.min_sep, max_phase=a.max_phase)
     H = {"pipeline": m1.pipeline_templates(dev)}
     _, tw = cd.cluster(cd.TEMPLATE_SEED)
     H["exact"] = np.array([sj.feature_response(sj.refocus(sj.exact_smatrix(
@@ -182,6 +182,8 @@ def main():
     ap.add_argument("--batch", type=int, default=16)
     ap.add_argument("--dose", type=float, default=1e5)
     ap.add_argument("--threads", type=int, default=4)
+    ap.add_argument("--max-phase", type=float, default=np.pi / 4,
+                    help="limit on the feature-amplitude phase [rad] against the z <-> T - z mirror (simple_joint)")
     a = ap.parse_args()
     torch.set_num_threads(a.threads)
     os.makedirs(OUT, exist_ok=True)
