@@ -12,3 +12,5 @@ results_authors/authors_full_sections_poly.npz
 results_joint/cache/
 # live logs while experiments run (final copies are force-added)
 results_joint/logs/
+# M0 recovered S-matrices (~25 MB each); summaries are tracked
+results_m0/*.npy

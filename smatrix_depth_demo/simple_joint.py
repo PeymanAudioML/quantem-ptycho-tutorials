@@ -289,3 +289,83 @@ def estimate_depths(S, setup, depths, metric="intensity_var", n_peaks=5, min_sep
         if len(peaks) == n_peaks:
             break
     return depths[peaks], curve[peaks], curve
+
+
+# ------------------------------------------------------------------------------------------------ depth convention + fitting
+# Depth convention: z = 0 is the specimen entrance surface, z = T the exit surface; C10 < 0 puts the probe focus at
+# depth |C10| inside the specimen.  `refocus` assumes an ENTRANCE-referenced S (S_b = exit wave of plane wave b,
+# propagated back by T).  For a recovered S this is a gauge, not a property of the data: propagating every beam by the
+# same dz changes only the phase of the predicted far field.  It holds approximately because `fit` starts from the
+# vacuum S-matrix; measure it with `reference_plane` when a ground truth is available.
+
+def exact_smatrix(setup, layers, layer_z, thickness, reference="entrance", device=None):
+    """Ground-truth S (B, Y, Y) of a layered phase specimen: multislice of every beam's plane wave (propagate to each
+    layer, multiply by exp(i phase), propagate to the exit), then propagated back by `thickness` if reference ==
+    "entrance".  Same physics as demo_simple_joint.simulate."""
+    S = vacuum_smatrix(setup, device=device).to(torch.complex128)
+    dev = S.device
+    q = torch.as_tensor(np.fft.fftfreq(setup.Y, setup.dr), dtype=torch.float64, device=dev)
+    q2 = q[:, None] ** 2 + q[None, :] ** 2
+    prop = lambda dz, f: torch.fft.ifft2(torch.fft.fft2(f) * torch.exp(-1j * math.pi * setup.lam * dz * q2))
+    zs = [0.0] + list(layer_z)
+    for i, L in enumerate(layers):
+        S = prop(zs[i + 1] - zs[i], S) * torch.exp(1j * torch.as_tensor(np.asarray(L), device=dev))
+    S = prop(thickness - zs[-1], S)
+    if reference == "entrance":
+        S = prop(-thickness, S)
+    return S.to(torch.complex64)
+
+
+def feature_response(volume, weight):
+    """Complex depth response (Nz,) of a feature: sum_xy w(x,y) [R(x,y,z) / <R(z)> - 1] / sum w.
+
+    volume: refocused sections (Nz, Y, X) from `refocus`; weight: (Y, X) lateral footprint of the feature (e.g. Gaussian
+    blobs at its atoms).  Dividing by the slice mean removes the overall scale and the global phase of each section."""
+    vol = np.asarray(volume)
+    norm = vol / vol.mean(axis=(1, 2), keepdims=True)
+    w = np.asarray(weight, float)
+    return ((norm - 1) * w).sum(axis=(1, 2)) / w.sum()
+
+
+def fit_depth(r, templates, z0_grid, step=1.0):
+    """Depth of a feature by complex template fitting.
+
+    r:          (Nz,) measured complex response (`feature_response`) on the same depth grid as the templates
+    templates:  (N0, Nz) complex responses of a known feature at depths z0_grid (N0,), e.g. from `exact_smatrix`
+    For each candidate z0 (templates interpolated linearly between grid depths, `step` A apart) solve
+        min_{a, b complex} || r - a h(z0) - b ||^2
+    and return (best z0, z0 candidates, residual curve normalised by ||r - mean r||^2)."""
+    z0_grid = np.asarray(z0_grid, float)
+    cand = np.arange(z0_grid[0], z0_grid[-1] + 1e-9, step)
+    r = np.asarray(r, complex)
+    rc = r - r.mean()
+    res = np.empty(len(cand))
+    for i, z in enumerate(cand):
+        j = min(np.searchsorted(z0_grid, z, side="right") - 1, len(z0_grid) - 2)
+        t = (z - z0_grid[j]) / (z0_grid[j + 1] - z0_grid[j])
+        h = (1 - t) * templates[j] + t * templates[j + 1]
+        hc = h - h.mean()                                  # the constant b absorbs the means
+        a = np.vdot(hc, rc) / max(np.vdot(hc, hc).real, 1e-30)
+        res[i] = np.linalg.norm(rc - a * hc) ** 2
+    res /= max(np.linalg.norm(rc) ** 2, 1e-30)
+    return float(cand[np.argmin(res)]), cand, res
+
+
+def reference_plane(S_rec, S_true, setup, dz_grid, crop=None):
+    """Propagation distance dz that best maps S_rec onto S_true (per-beam phase aligned), i.e. where the recovered S's
+    reference plane sits relative to S_true's.  Returns (best dz, dz_grid, normalised error curve)."""
+    Sr = torch.as_tensor(np.asarray(S_rec)).to(torch.complex128)
+    St = np.asarray(S_true)
+    q = np.fft.fftfreq(setup.Y, setup.dr)
+    q2 = torch.as_tensor(q[:, None] ** 2 + q[None, :] ** 2)
+    Srq = torch.fft.fft2(Sr)
+    cr = crop or (slice(None), slice(None))
+    b = St[(slice(None),) + cr]
+    err = []
+    for dz in dz_grid:
+        a = torch.fft.ifft2(Srq * torch.exp(-1j * math.pi * setup.lam * dz * q2)).numpy()[(slice(None),) + cr]
+        c = np.einsum("bij,bij->b", np.conj(a), b)
+        ph = np.where(np.abs(c) > 0, c / np.maximum(np.abs(c), 1e-30), 1.0)
+        err.append(float(np.linalg.norm(a * ph[:, None, None] - b) / np.linalg.norm(b)))
+    err = np.array(err)
+    return float(np.asarray(dz_grid)[np.argmin(err)]), np.asarray(dz_grid), err
