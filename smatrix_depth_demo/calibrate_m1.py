@@ -37,9 +37,10 @@ PAIR_SEPS = [40.0, 80.0, 120.0]
 
 
 # ------------------------------------------------------------------------------------------------ reconstructions
-def reconstruct(tag, layers, layer_z, noise_seed, args):
-    """Simulate data for `layers` at `layer_z`, run the joint S + probe fit, save S and a JSON summary. Skips if done."""
-    f = os.path.join(OUT, f"S_{tag}.npy")
+def reconstruct(tag, layers, layer_z, noise_seed, args, out=None):
+    """Simulate data for `layers` at `layer_z`, run the joint S + probe fit, save S and a JSON summary to `out`
+    (default results_m1/). Skips if done."""
+    f = os.path.join(out or OUT, f"S_{tag}.npy")
     if os.path.exists(f):
         return
     positions, nominal, true = cd.problem()
@@ -77,8 +78,24 @@ def run_pairs(args):
 
 
 # ------------------------------------------------------------------------------------------------ analysis
-def responses(tags, weight, device):
-    return {t: sj.feature_response(sj.refocus(np.load(os.path.join(OUT, f"S_{t}.npy")), cd.SETUP, cd.DEPTHS,
+def pipeline_templates(device=None):
+    """(13, Nz) pipeline templates: loaded from results_m1/templates_pipeline.npz, else built from the template runs."""
+    f = os.path.join(OUT, "templates_pipeline.npz")
+    if os.path.exists(f):
+        return np.load(f)["h"]
+    _, tw = cd.cluster(cd.TEMPLATE_SEED)
+    tags = [f"tmpl_z{z:.0f}" for z in TEMPLATE_DEPTHS]
+    missing = [t for t in tags if not os.path.exists(os.path.join(OUT, f"S_{t}.npy"))]
+    if missing:
+        raise FileNotFoundError(f"run 'python calibrate_m1.py templates' first; missing {missing}")
+    tr = responses(tags, tw, device)
+    h = np.array([tr[t] for t in tags])
+    np.savez(f, h=h, z0=TEMPLATE_DEPTHS, depths=cd.DEPTHS)
+    return h
+
+
+def responses(tags, weight, device, out=None):
+    return {t: sj.feature_response(sj.refocus(np.load(os.path.join(out or OUT, f"S_{t}.npy")), cd.SETUP, cd.DEPTHS,
                                               device=device), weight) for t in tags}
 
 
@@ -93,8 +110,7 @@ def analyze(args):
         print("missing reconstructions (run templates / test / pairs first):", missing)
         return
     # template libraries on the same depth grid: pipeline (recovered S) and exact S (as in M0)
-    tr = responses([f"tmpl_z{z:.0f}" for z in TEMPLATE_DEPTHS], tw, dev)
-    H = {"pipeline": np.array([tr[f"tmpl_z{z:.0f}"] for z in TEMPLATE_DEPTHS]),
+    H = {"pipeline": pipeline_templates(dev),
          "exact": np.array([sj.feature_response(sj.refocus(sj.exact_smatrix(cd.SETUP, [cd.cluster(cd.TEMPLATE_SEED)[0]],
                                                                             [z], cd.THICK), cd.SETUP, cd.DEPTHS,
                                                            device=dev), tw) for z in TEMPLATE_DEPTHS])}
