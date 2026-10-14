@@ -185,6 +185,8 @@ def main():
     a = ap.parse_args()
     torch.set_num_threads(a.threads)
     os.makedirs(OUT, exist_ok=True)
+    pos0, nom0, _ = cd.problem()
+    sj.check_geometry(cd.SETUP, pos0, nom0, cd.THICK)
     if a.cmd in ("pairs", "all"):
         run_pairs(a)
     if a.cmd in ("singles", "all"):

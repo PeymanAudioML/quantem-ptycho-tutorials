@@ -421,3 +421,51 @@ def select_n_features(R, templates, z0_grid, floor, max_features=3, min_gain=0.5
         else:
             break
     return fits[n_sel][0], fits
+
+
+# ------------------------------------------------------------------------------------------------ geometry validity
+def check_geometry(setup, positions, nominal, thickness, abtem=False, min_ratio=0.7, probe_size=None,
+                   strict=False, log=print):
+    """Check a reconstruction setup before running it.  Returns a list of dicts (check, value, limit, ok, note);
+    logs every failed check, and raises ValueError if strict and anything fails.
+
+      beams in window grid   aperture alpha/lam inside the window's Nyquist 1/(2 dr)
+      abTEM band limit       lam/(3 dr) >= 1.3 alpha (only with abtem=True: dark field beyond the aperture)
+      window size            K dr >= 2 alpha * (largest distance from focus within 0..T) + probe_size, over datasets
+      scan inside S grid     every window [r - K/2, r + K/2) inside the Y x Y grid
+      measurements/unknowns  D * positions * K^2 / (2 * beams * S pixels covered by windows) >= min_ratio
+                             (M0/M1: 1.33 recovered the probe to 1.4 A; 0.35 left half the error)
+
+    positions: (..., 2) scan positions [S-grid px]; nominal: (D, P) aberrations [A] (C10 < 0 = focus |C10| inside)."""
+    lam, a, dr, K, Y = setup.lam, setup.alpha, setup.dr, setup.K, setup.Y
+    pos = np.asarray(positions).reshape(-1, 2)
+    nominal = np.atleast_2d(np.asarray(nominal, float))
+    probe_size = lam / a if probe_size is None else probe_size
+    focus = -nominal[:, NAMES.index("C10")]                          # focus depth below the entrance [A]
+    spread = max(max(abs(f), abs(thickness - f)) for f in focus)
+    nb = len(setup.beams()[0])
+    cover = np.zeros((Y, Y), bool)
+    for y, x in pos:
+        cover[max(0, y - K // 2):y + K - K // 2, max(0, x - K // 2):x + K - K // 2] = True
+    ratio = len(nominal) * len(pos) * K * K / (2 * nb * max(cover.sum(), 1))
+    inside = bool(((pos - K // 2) >= 0).all() and ((pos + K - K // 2) <= Y).all())
+    checks = [
+        dict(check="beams in window grid", value=a / lam, limit=1 / (2 * dr), ok=a / lam <= 1 / (2 * dr),
+             note="aperture radius vs Nyquist [1/A]"),
+        dict(check="window size", value=K * dr, limit=2 * a * spread + probe_size, ok=K * dr >= 2 * a * spread + probe_size,
+             note=f"window [A] vs probe cone 2*alpha*{spread:.0f} A + {probe_size:.1f} A"),
+        dict(check="scan inside S grid", value=float(inside), limit=1.0, ok=inside, note="all windows inside Y x Y"),
+        dict(check="measurements/unknowns", value=ratio, limit=min_ratio, ok=ratio >= min_ratio,
+             note=f"{len(nominal)} datasets x {len(pos)} positions, {nb} beams"),
+    ]
+    if abtem:
+        bl = lam / (3 * dr)
+        checks.insert(1, dict(check="abTEM band limit", value=bl * 1e3, limit=1.3e3 * a, ok=bl >= 1.3 * a,
+                              note="mrad; use smaller dr"))
+    checks = [dict(c, value=float(c["value"]), limit=float(c["limit"]), ok=bool(c["ok"])) for c in checks]
+    bad = [c for c in checks if not c["ok"]]
+    for c in bad:
+        log(f"geometry check FAILED: {c['check']}: {c['value']:.3g} vs limit {c['limit']:.3g} ({c['note']})")
+    if strict and bad:
+        raise ValueError("geometry check failed: " + ", ".join(c["check"] for c in bad))
+    return checks

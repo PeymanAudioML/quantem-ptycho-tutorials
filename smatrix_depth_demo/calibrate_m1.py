@@ -186,6 +186,8 @@ def main():
     os.makedirs(OUT, exist_ok=True)
     print(f"device {a.device}" + (f" ({torch.cuda.get_device_name(0)})" if str(a.device).startswith("cuda") else ""),
           flush=True)
+    pos0, nom0, _ = cd.problem()
+    sj.check_geometry(cd.SETUP, pos0, nom0, cd.THICK)
     if a.cmd in ("templates", "all"):
         run_templates(a)
     if a.cmd in ("test", "all"):

@@ -89,3 +89,16 @@ def test_select_n_features_negative_control_and_two_layers():
     assert len(zs) == 1 and abs(zs[0] - 100.0) <= 3.0
     zs, _ = sj.select_n_features(resp([60.0, 140.0]), h, z0_grid, floor=0.005, max_features=2)
     assert len(zs) == 2 and abs(zs[0] - 60.0) <= 6.0 and abs(zs[1] - 140.0) <= 6.0
+
+
+def test_check_geometry_flags_bad_setups():
+    import calibrate_depth as cd
+    pos, nom, _ = cd.problem()
+    failed = lambda **kw: {c["check"] for c in sj.check_geometry(cd.SETUP, kw.pop("p", pos), kw.pop("n", nom),
+                                                                   kw.pop("T", 300.0), log=lambda *_: None, **kw)
+                           if not c["ok"]}
+    assert failed() == set()                                          # the M0/M1 setup passes
+    assert failed(abtem=True) == {"abTEM band limit"}                 # 0.3 A pixels lose the dark field in abTEM
+    assert failed(p=pos[::2, ::2]) == {"measurements/unknowns"}       # 0.6 A scan step: ratio 0.35
+    nom6 = nom.copy(); nom6[:, 0] = [-500.0, -300.0, -100.0]
+    assert failed(n=nom6, T=600.0) == {"window size"}                 # 12 A window, ~21 A probe cone
