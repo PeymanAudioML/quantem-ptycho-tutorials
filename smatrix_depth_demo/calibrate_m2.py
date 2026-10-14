@@ -181,7 +181,7 @@ def main():
     ap.add_argument("--tol", type=float, default=10.0, help="depth tolerance [A] (or d/4 if larger)")
     ap.add_argument("--min-sep", type=float, default=10.0, help="smallest separation the two-feature fit may return")
     ap.add_argument("--floor-factor", type=float, default=2.0)
-    ap.add_argument("--min-amp-ratio", type=float, default=0.3,
+    ap.add_argument("--min-amp-ratio", type=float, default=0.5,
                     help="a second feature must have >= this fraction of the first's amplitude (0 = off)")
     ap.add_argument("--epochs", type=int, default=40)
     ap.add_argument("--batch", type=int, default=16)

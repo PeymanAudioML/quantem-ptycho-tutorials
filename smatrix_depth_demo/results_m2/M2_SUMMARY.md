@@ -14,3 +14,12 @@ Pairs of identical 3-atom phase clusters in one column, 300 A slab, 20 mrad, joi
   (the exit surface), with residuals only just above the floor (0.0048 / 0.0054 vs 0.0046). Likely the mirror /
   edge ambiguity found in M3; M1/M2 analysis now uses the amplitude-phase limit (`--max-phase`, default pi/4).
   To confirm, re-run `python calibrate_m2.py analyze` (minutes, uses the saved S-matrices).
+
+## Closure (amplitude check, ddab0d3)
+
+- Spurious edge features removed by `min_amp_ratio`: d = 20 / 40 A pairs at c = 100 A now return one feature at
+  100 / 101 A (correct for an unresolved pair).
+- Two-feature amplitude ratio (weaker / stronger): real pairs (60-120 A) 0.86-1.0; unresolved pairs 0.05-0.14,
+  except d = 40 A at c = 200 A: 0.31 (0.44 / 1.43). Default threshold raised from 0.3 to 0.5, the middle of the gap
+  (0.31 vs 0.86); no M2 result changes.
+- **M2 closed**: two-feature limit between 40 and 60 A; 0 / 10 false splits; resolved pairs within 4 A.
