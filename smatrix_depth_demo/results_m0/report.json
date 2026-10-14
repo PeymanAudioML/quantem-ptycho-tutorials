@@ -1,0 +1,42 @@
+{
+ "30.0": {
+  "A_peak": 30.0,
+  "A_template": 30.0,
+  "B_peak": 20.0,
+  "B_template": 28.0,
+  "B_ref_plane": 5.0,
+  "C_peak": 15.0,
+  "C_template": 27.0,
+  "C_ref_plane": 0.0
+ },
+ "75.0": {
+  "A_peak": 75.0,
+  "A_template": 75.0
+ },
+ "115.0": {
+  "A_peak": 115.0,
+  "A_template": 115.0
+ },
+ "150.0": {
+  "A_peak": 150.0,
+  "A_template": 150.0,
+  "B_peak": 145.0,
+  "B_template": 149.0,
+  "B_ref_plane": 5.0,
+  "C_peak": 135.0,
+  "C_template": 146.0,
+  "C_ref_plane": 0.0
+ },
+ "185.0": {
+  "A_peak": 185.0,
+  "A_template": 185.0
+ },
+ "225.0": {
+  "A_peak": 225.0,
+  "A_template": 225.0
+ },
+ "270.0": {
+  "A_peak": 270.0,
+  "A_template": 270.0
+ }
+}
