@@ -114,6 +114,7 @@ def main():
     true[1, :3] += [12.0, 6.0, -4.0]           # dC10, dC12a, dC12b [A]
     true[2, :3] += [-10.0, -3.0, 5.0]
 
+    sj.check_geometry(setup, positions, nominal, thickness, abtem=a.simulator == "abtem")
     t0 = time.time()
     if a.simulator == "abtem":
         import abtem_data as ad
