@@ -39,7 +39,7 @@ def cluster(setup, seed, n):
 def specimen(setup, xy, zs, env, rho):
     from ase import Atoms
     C = m3.carbon(setup, T, env, density=rho) if rho > 0 else np.zeros((0, 3))
-    au = np.array([(x, y, z) for z in zs for (y, x) in xy]).reshape(-1, 3)
+    au = np.array([(x, y, min(z, T - m3.Z_EPS)) for z in zs for (y, x) in xy]).reshape(-1, 3)
     if len(au) and len(C):
         C = C[np.linalg.norm(C[:, None, :] - au[None, :, :], axis=-1).min(axis=1) > 2.0]
     L = setup.Y * setup.dr

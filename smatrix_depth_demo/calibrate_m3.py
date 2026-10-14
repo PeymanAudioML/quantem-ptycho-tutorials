@@ -30,6 +30,7 @@ GEOMETRY = {100: dict(K=32), 300: dict(K=60), 600: dict(K=108)}   # window >= pr
 TEMPLATE_SEED, TEST_SEED = 11, 22                           # gold-cluster arrangements
 ENV_TEMPLATE, ENV_TEST = 1, 2                               # carbon arrangements
 CARBON_DENSITY = 0.1                                        # atoms / A^3 (amorphous carbon ~2 g/cm^3)
+Z_EPS = 1e-3      # abTEM wraps an atom at exactly z = T (the cell height) to the first slice: keep atoms below T
 
 
 # ------------------------------------------------------------------------------------------------ configuration
@@ -86,7 +87,7 @@ def carbon(setup, T, seed, density=CARBON_DENSITY):
     X, Yy, Z = np.meshgrid(gx, gx, gz, indexing="ij")
     p = np.stack([X.ravel(), Yy.ravel(), Z.ravel()], -1) + rng.uniform(-0.3 * a, 0.3 * a, (X.size, 3))
     p[:, :2] %= L
-    p[:, 2] = np.clip(p[:, 2], 0.0, T)
+    p[:, 2] = np.clip(p[:, 2], 0.0, T - Z_EPS)
     return p
 
 
@@ -95,7 +96,7 @@ def specimen(setup, T, cluster_xy, z_list, env_seed):
     any Au removed)."""
     from ase import Atoms
     C = carbon(setup, T, env_seed)
-    au = np.array([(x, y, z) for z in z_list for (y, x) in cluster_xy]).reshape(-1, 3)
+    au = np.array([(x, y, min(z, T - Z_EPS)) for z in z_list for (y, x) in cluster_xy]).reshape(-1, 3)
     if len(au):
         d = np.linalg.norm(C[:, None, :] - au[None, :, :], axis=-1).min(axis=1)
         C = C[d > 2.0]
