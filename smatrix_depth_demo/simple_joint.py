@@ -369,3 +369,55 @@ def reference_plane(S_rec, S_true, setup, dz_grid, crop=None):
         err.append(float(np.linalg.norm(a * ph[:, None, None] - b) / np.linalg.norm(b)))
     err = np.array(err)
     return float(np.asarray(dz_grid)[np.argmin(err)]), np.asarray(dz_grid), err
+
+
+def _template_at(templates, z0_grid, z):
+    j = min(np.searchsorted(z0_grid, z, side="right") - 1, len(z0_grid) - 2)
+    t = (z - z0_grid[j]) / (z0_grid[j + 1] - z0_grid[j])
+    return (1 - t) * templates[j] + t * templates[j + 1]
+
+
+def fit_depths_joint(R, templates, z0_grid, n_features, min_sep=20.0, refine=10.0, step=2.0):
+    """Joint depth fit of `n_features` features whose responses overlap.
+
+    R: (m, Nz) complex responses (one row per lateral footprint; m = 1 for a single column).  Model:
+        R_i(z) = sum_k A_ik h(z; z_k) + b_i        (A, b complex, solved by least squares for every depth set)
+    Depth sets are searched on the template grid (features >= min_sep apart), then refined +-refine A in `step` A.
+    Returns (depths sorted, relative residual = ||R - model||^2 / ||R - mean||^2)."""
+    import itertools
+    z0_grid = np.asarray(z0_grid, float)
+    R = np.atleast_2d(np.asarray(R, complex))
+    Rc = (R - R.mean(axis=1, keepdims=True)).T                      # (Nz, m)
+    norm = max(np.linalg.norm(Rc) ** 2, 1e-30)
+
+    def cost(zs):
+        H = np.array([_template_at(templates, z0_grid, z) for z in zs]).T
+        H = H - H.mean(axis=0)
+        A = np.linalg.lstsq(H, Rc, rcond=None)[0]
+        return np.linalg.norm(Rc - H @ A) ** 2 / norm
+
+    ok = lambda zs: all(b - a >= min_sep for a, b in zip(zs, zs[1:]))
+    best = min((cost(c), c) for c in itertools.combinations(z0_grid, n_features) if ok(c))[1]
+    fine = [np.arange(max(z0_grid[0], z - refine), min(z0_grid[-1], z + refine) + 1e-9, step) for z in best]
+    res, best = min((cost(c), c) for c in itertools.product(*fine) if ok(c))
+    return [float(z) for z in best], float(res)
+
+
+def select_n_features(R, templates, z0_grid, floor, max_features=3, min_gain=0.5, **kw):
+    """Fit 1 .. max_features features; add one more only while the current model's residual is above `floor` AND the
+    extra feature cuts the residual by at least `min_gain` (fraction).  Returns (selected depths, {n: (depths, res)}).
+
+    floor is the residual a SINGLE feature leaves with these templates (template mismatch + noise).  It must be
+    calibrated on single-feature negative controls processed exactly like the data: ~0.002 for exact-S responses vs
+    exact-S templates, but ~0.04 for recovered-S responses vs exact-S templates (M0), where a lower floor would split
+    one feature into two.  The residual-gain test alone is not safe: fitting template mismatch always lowers it."""
+    fits = {}
+    for n in range(1, max_features + 1):
+        fits[n] = fit_depths_joint(R, templates, z0_grid, n, **kw)
+    n_sel = 1
+    for n in range(2, max_features + 1):
+        if fits[n_sel][1] > floor and fits[n][1] <= (1 - min_gain) * fits[n_sel][1]:
+            n_sel = n
+        else:
+            break
+    return fits[n_sel][0], fits

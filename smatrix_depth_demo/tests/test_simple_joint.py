@@ -68,3 +68,24 @@ def test_reference_plane_recovers_known_shift():
     shifted = np.fft.ifft2(np.fft.fft2(S.numpy()) * np.exp(-1j * np.pi * ST.lam * (-30.0) * (q[:, None] ** 2 + q[None, :] ** 2)))
     dz, _, err = sj.reference_plane(shifted, S.numpy(), ST, np.arange(-60.0, 61.0, 5.0))
     assert dz == 30.0 and err.min() < 1e-4
+
+
+def _templates_and_response():
+    z0_grid = np.arange(0.0, THICK + 1e-6, 20.0)
+    timg = blobs(11)
+    h = np.array([sj.feature_response(sj.refocus(sj.exact_smatrix(ST, [timg], [z], THICK), ST, DEPTHS), timg / timg.max())
+                  for z in z0_grid])
+    img = blobs(22)
+    resp = lambda zs: sj.feature_response(sj.refocus(sj.exact_smatrix(ST, [img] * len(zs), zs, THICK), ST, DEPTHS),
+                                          img / img.max())
+    return h, z0_grid, resp
+
+
+def test_select_n_features_negative_control_and_two_layers():
+    """Exact S: one cluster stays one feature (negative control); two identical clusters 80 A apart in the same
+    column are found as two, each within 6 A."""
+    h, z0_grid, resp = _templates_and_response()
+    zs, _ = sj.select_n_features(resp([100.0]), h, z0_grid, floor=0.005, max_features=2)
+    assert len(zs) == 1 and abs(zs[0] - 100.0) <= 3.0
+    zs, _ = sj.select_n_features(resp([60.0, 140.0]), h, z0_grid, floor=0.005, max_features=2)
+    assert len(zs) == 2 and abs(zs[0] - 60.0) <= 6.0 and abs(zs[1] - 140.0) <= 6.0
