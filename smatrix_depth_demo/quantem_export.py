@@ -7,7 +7,9 @@
 
 Conventions
   * Depth z = 0 is the specimen entrance surface, z = T the exit (as in simple_joint).  QuantEM's first plane is placed
-    at z = 0, so a probe defocus given to QuantEM is referenced to the same entrance surface (C10 < 0 = focus inside).
+    at z = 0.  QuantEM's probe_params["defocus"] = -C10 (positive = focus inside the specimen); with that sign the
+    reconstructed depth matches (M5 dry run: Au at 50 A recovered at 49 A).  Lateral: QuantEM object pixel = S-grid
+    pixel - K/2 + obj_padding_px, i.e. pass origin = (K/2 - padding) * dr to initial_potential.
   * Slab k covers [b_k, b_{k+1}); its transmission plane sits at b_k.  QuantEM gets the N - 1 propagation distances
     b_{k+1} - b_k between consecutive planes.  The last slab's thickness is not propagated; that only changes the phase
     of the exit wave's far field, not the measured intensities.
