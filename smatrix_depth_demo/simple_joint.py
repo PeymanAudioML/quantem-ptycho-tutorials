@@ -378,7 +378,7 @@ def _template_at(templates, z0_grid, z):
 
 
 def fit_depths_joint(R, templates, z0_grid, n_features, min_sep=20.0, refine=10.0, step=2.0, nuisance=None,
-                     max_phase=None):
+                     max_phase=None, return_amplitudes=False):
     """Joint depth fit of `n_features` features whose responses overlap.
 
     R: (m, Nz) complex responses (one row per lateral footprint; m = 1 for a single column).  Model:
@@ -391,6 +391,7 @@ def fit_depths_joint(R, templates, z0_grid, n_features, min_sep=20.0, refine=10.
     at its mirror depth T - z; features of the same kind as the template have A ~ positive real.  M3 (Au in carbon,
     100 A): free amplitudes put 10 / 90 A at 100 / 4 A; max_phase = pi/4 gives 0 / 100 A (the carbon bias only).
     The limit is applied by clipping the least-squares amplitudes' phases (approximate for several features).
+    return_amplitudes: also return (n_features,) mean |A_ik| over the response rows, in depth order.
     Returns (depths sorted, relative residual = ||R - model||^2 / ||R - mean||^2)."""
     import itertools
     z0_grid = np.asarray(z0_grid, float)
@@ -409,29 +410,39 @@ def fit_depths_joint(R, templates, z0_grid, n_features, min_sep=20.0, refine=10.
         if max_phase is not None:
             Af = A[:n_features]
             A[:n_features] = np.abs(Af) * np.exp(1j * np.clip(np.angle(Af), -max_phase, max_phase))
+        cost.amps = np.abs(A[:n_features]).mean(axis=1)
         return np.linalg.norm(Rc - H @ A) ** 2 / norm
 
     ok = lambda zs: all(b - a >= min_sep for a, b in zip(zs, zs[1:]))
     best = min((cost(c), c) for c in itertools.combinations(z0_grid, n_features) if ok(c))[1]
     fine = [np.arange(max(z0_grid[0], z - refine), min(z0_grid[-1], z + refine) + 1e-9, step) for z in best]
     res, best = min((cost(c), c) for c in itertools.product(*fine) if ok(c))
+    if return_amplitudes:
+        cost(best)
+        return [float(z) for z in best], float(res), cost.amps.tolist()
     return [float(z) for z in best], float(res)
 
 
-def select_n_features(R, templates, z0_grid, floor, max_features=3, min_gain=0.5, **kw):
+def select_n_features(R, templates, z0_grid, floor, max_features=3, min_gain=0.5, min_amp_ratio=None, **kw):
     """Fit 1 .. max_features features; add one more only while the current model's residual is above `floor` AND the
     extra feature cuts the residual by at least `min_gain` (fraction).  Returns (selected depths, {n: (depths, res)}).
 
     floor is the residual a SINGLE feature leaves with these templates (template mismatch + noise).  It must be
-    calibrated on single-feature negative controls processed exactly like the data: ~0.002 for exact-S responses vs
+    min_amp_ratio: also require every feature of the larger model to have |A| >= min_amp_ratio * the strongest (an
+    added feature that only absorbs template mismatch is weak; M2: unresolved pairs got a spurious edge feature).
+    Returns fits {n: (depths, residual, amplitudes)}.
+
+    floor must be calibrated on single-feature negative controls processed exactly like the data: ~0.002 for exact-S responses vs
     exact-S templates, but ~0.04 for recovered-S responses vs exact-S templates (M0), where a lower floor would split
     one feature into two.  The residual-gain test alone is not safe: fitting template mismatch always lowers it."""
     fits = {}
     for n in range(1, max_features + 1):
-        fits[n] = fit_depths_joint(R, templates, z0_grid, n, **kw)
+        fits[n] = fit_depths_joint(R, templates, z0_grid, n, return_amplitudes=True, **kw)
     n_sel = 1
     for n in range(2, max_features + 1):
-        if fits[n_sel][1] > floor and fits[n][1] <= (1 - min_gain) * fits[n_sel][1]:
+        amps = np.asarray(fits[n][2])
+        strong = min_amp_ratio is None or amps.min() >= min_amp_ratio * amps.max()
+        if fits[n_sel][1] > floor and fits[n][1] <= (1 - min_gain) * fits[n_sel][1] and strong:
             n_sel = n
         else:
             break

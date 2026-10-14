@@ -125,14 +125,15 @@ def analyze(a):
         out["floor"] = floor
         out["singles"] = []
         for (z, n), r in single_resp.items():
-            zs, fits = sj.select_n_features(r, h, grid, floor, max_features=2, **kw)
+            zs, fits = sj.select_n_features(r, h, grid, floor, max_features=2, min_amp_ratio=a.min_amp_ratio, **kw)
             out["singles"].append(dict(z0=z, noise=n, n_found=len(zs), depths=zs, res1=fits[1][1], res2=fits[2][1]))
         out["pairs"] = []
         for (d, c, n), r in pair_resp.items():
-            zs, fits = sj.select_n_features(r, h, grid, floor, max_features=2, **kw)
+            zs, fits = sj.select_n_features(r, h, grid, floor, max_features=2, min_amp_ratio=a.min_amp_ratio, **kw)
             ok, err = judge(zs, pair_depths(d, c), max(a.tol, 0.25 * d))
             out["pairs"].append(dict(sep=d, centre=c, noise=n, truth=pair_depths(d, c), found=zs, n_found=len(zs),
-                                     correct=ok, errors=err, two_feature_fit=fits[2][0], res1=fits[1][1], res2=fits[2][1]))
+                                     correct=ok, errors=err, two_feature_fit=fits[2][0], res1=fits[1][1], res2=fits[2][1],
+                                     amps2=fits[2][2]))
         out["false_split_rate"] = float(np.mean([s["n_found"] > 1 for s in out["singles"]])) if out["singles"] else None
         out["separability"] = {str(d): float(np.mean([p["correct"] for p in out["pairs"] if p["sep"] == d]))
                                for d in a.seps if any(p["sep"] == d for p in out["pairs"])}
@@ -153,11 +154,13 @@ def write_markdown(rep):
               f"{r['false_split_rate']:.2f} ({len(r['singles'])} controls).", "",
               "| separation d (A) | fraction found as two, both within tolerance |", "|---|---|"]
         L += [f"| {d} | {v:.2f} |" for d, v in r["separability"].items()]
-        L += ["", "| d | centre | noise | truth | found | errors | res 1 | res 2 |", "|---|---|---|---|---|---|---|---|"]
+        L += ["", "| d | centre | noise | truth | found | errors | res 1 | res 2 | 2-feature amplitudes |",
+              "|---|---|---|---|---|---|---|---|---|"]
         for p in sorted(r["pairs"], key=lambda p: (p["sep"], p["centre"], p["noise"])):
             err = "-" if p["errors"][0] is None else str(np.round(p["errors"], 1).tolist())
             L.append(f"| {p['sep']:.0f} | {p['centre']:.0f} | {p['noise']} | {p['truth']} | "
-                     f"{np.round(p['found'], 1).tolist()} | {err} | {p['res1']:.4f} | {p['res2']:.4f} |")
+                     f"{np.round(p['found'], 1).tolist()} | {err} | {p['res1']:.4f} | {p['res2']:.4f} | "
+                     f"{np.round(p['amps2'], 3).tolist()} |")
         L += ["", "| single z0 | noise | features found | depths | res 1 |", "|---|---|---|---|---|"]
         L += [f"| {s['z0']:.0f} | {s['noise']} | {s['n_found']} | {np.round(s['depths'], 1).tolist()} | {s['res1']:.4f} |"
               for s in r["singles"]]
@@ -178,6 +181,8 @@ def main():
     ap.add_argument("--tol", type=float, default=10.0, help="depth tolerance [A] (or d/4 if larger)")
     ap.add_argument("--min-sep", type=float, default=10.0, help="smallest separation the two-feature fit may return")
     ap.add_argument("--floor-factor", type=float, default=2.0)
+    ap.add_argument("--min-amp-ratio", type=float, default=0.3,
+                    help="a second feature must have >= this fraction of the first's amplitude (0 = off)")
     ap.add_argument("--epochs", type=int, default=40)
     ap.add_argument("--batch", type=int, default=16)
     ap.add_argument("--dose", type=float, default=1e5)
