@@ -239,7 +239,7 @@ def main():
     nb = len(setup.beams()[0])
     print(f"device {a.device}; {a.thickness:.0f} A slab; K {setup.K}, Y {setup.Y}, {nb} beams, "
           f"{3 * positions.shape[0] * positions.shape[1]} patterns per reconstruction "
-          f"(~{nb * setup.K ** 2 * 3 * positions[..., 0].size / (473 * 1600 * 5043):.1f}x an M1 reconstruction)", flush=True)
+          f"(~{nb * setup.K ** 2 * 3 * positions[..., 0].size / (473 * 1600 * 5043):.2g}x an M1 reconstruction)", flush=True)
     sj.check_geometry(setup, positions, nominal, a.thickness, abtem=True)
     if a.cmd in ("templates", "all"):
         run_templates(a)
