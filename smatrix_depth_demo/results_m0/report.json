@@ -40,6 +40,9 @@
   "A_template": 270.0,
   "B_peak": 270.0,
   "B_template": 273.0,
-  "B_ref_plane": 5.0
+  "B_ref_plane": 5.0,
+  "C_peak": 260.0,
+  "C_template": 268.0,
+  "C_ref_plane": 0.0
  }
 }
