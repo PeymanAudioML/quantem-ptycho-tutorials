@@ -69,8 +69,11 @@ def gold_cluster(setup, seed, n=3, spread=2.0, min_dist=2.5):
     """(n, 2) lateral (y, x) positions [A] of Au atoms near the field centre."""
     rng = np.random.default_rng(seed)
     c = setup.Y * setup.dr / 2
-    pts = []
+    pts, tries = [], 0
     while len(pts) < n:
+        tries += 1
+        if tries > 100000:
+            raise ValueError(f"cannot place {n} atoms {min_dist} A apart within +-{spread} A; increase spread")
         p = c + rng.uniform(-spread, spread, 2)
         if all(np.hypot(*(p - q)) >= min_dist for q in pts):
             pts.append(p)

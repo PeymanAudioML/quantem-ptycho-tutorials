@@ -33,7 +33,8 @@ def combo_dir(n, rho):
 
 
 def cluster(setup, seed, n):
-    return m3.gold_cluster(setup, seed, n=n, spread=2.0 * np.sqrt(n / 3.0))
+    # area grows with n; above 6 atoms random placement 2.5 A apart needs extra room (12 atoms do not fit in +-4 A)
+    return m3.gold_cluster(setup, seed, n=n, spread=2.0 * np.sqrt(n / 3.0) * (1.0 if n <= 6 else 1.4))
 
 
 def specimen(setup, xy, zs, env, rho):
