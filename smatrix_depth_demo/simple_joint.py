@@ -518,3 +518,52 @@ def background_basis(volume, weight, n_components=4, n_samples=300, margin=None,
     A = A - A.mean(axis=1, keepdims=True)
     _, _, vh = np.linalg.svd(A, full_matrices=False)
     return vh[:n_components].T
+
+
+# ------------------------------------------------------------------------------------------------ lateral detection
+def strength_map(volume):
+    """(Y, X) feature strength: max over depth of |phase| of the refocused sections, each normalised by its mean
+    (removes the overall scale and global phase).  A strong scatterer stands out at its own depth, whatever it is."""
+    vol = np.asarray(volume)
+    return np.abs(np.angle(vol / vol.mean(axis=(1, 2), keepdims=True))).max(axis=0)
+
+
+def detect_features(volume, setup, crop=None, sigma=0.3, k=6.0, min_dist=1.0):
+    """Lateral feature positions from a refocused volume (Nz, Y, X).
+
+    strength_map, Gaussian-smoothed by `sigma` A, then local maxima inside `crop` (default: the region every scan window
+    covers, K/2 from the edges) above median + k * 1.4826 * MAD of the map, at least `min_dist` A apart (strongest
+    first).  Returns (positions (n, 2) as (y, x) in A, peak strengths (n,), threshold).
+
+    Validated (contrast scan, 100 A slab, 6.4 A scanned field): Au atoms in vacuum all found with k = 6, no false
+    peaks.  In amorphous carbon (0.025-0.1 atoms/A^3) Au atoms are not distinct in the reconstructed phase (some at the
+    4th-20th percentile of the map, even at their own depth) and 0-33 % are found.  Heavy smoothing (1.5 A) only finds
+    the best-reconstructed field centre: carbon-only data peak there in 18 / 18 cases."""
+    from scipy.ndimage import gaussian_filter, maximum_filter
+    m = gaussian_filter(strength_map(volume), sigma / setup.dr)
+    Y = m.shape[0]
+    c0, c1 = (setup.K // 2, Y - setup.K // 2) if crop is None else crop
+    region = m[c0:c1, c0:c1]
+    med = np.median(region)
+    thr = med + k * 1.4826 * np.median(np.abs(region - med))
+    size = max(3, int(round(min_dist / setup.dr)) | 1)
+    peaks = (m == maximum_filter(m, size=size)) & (m > thr)
+    peaks[:c0, :] = peaks[c1:, :] = peaks[:, :c0] = peaks[:, c1:] = False
+    iy, ix = np.nonzero(peaks)
+    order = np.argsort(-m[iy, ix])
+    kept = []
+    for j in order:
+        p = np.array([iy[j], ix[j]]) * setup.dr
+        if all(np.hypot(*(p - q)) >= min_dist for q, _ in kept):
+            kept.append((p, m[iy[j], ix[j]]))
+    pos = np.array([p for p, _ in kept]).reshape(-1, 2)
+    return pos, np.array([s for _, s in kept]), float(thr)
+
+
+def footprint(setup, positions, sigma=0.45):
+    """(Y, Y) lateral weight: unit-peak Gaussians at positions (n, 2) (y, x) [A], for feature_response."""
+    r = np.arange(setup.Y) * setup.dr
+    w = np.zeros((setup.Y, setup.Y))
+    for y, x in np.asarray(positions).reshape(-1, 2):
+        w += np.exp(-((r[:, None] - y) ** 2 + (r[None, :] - x) ** 2) / (2 * sigma ** 2))
+    return w / max(w.max(), 1e-30)
