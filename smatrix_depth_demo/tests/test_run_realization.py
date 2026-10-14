@@ -62,3 +62,26 @@ def test_load_standin(tmp_path):
     assert np.allclose(d["positions_A"][0, 0], [3.2, 3.2])
     tr = rr.load_truth([str(tmp_path / "def_050")], lambda m: None)
     assert tr["potential"][0].shape == (50, 64, 64) and tr["atoms"][1].shape == (6, 3)
+
+
+@pytest.mark.parametrize("coef", [(-50, 12, 0, 0, 0, 0, 0, 0), (-50, 0, 12, 0, 0, 0, 0, 0), (-80, 7, -9, 0, 0, 0, 0, 0),
+                                  (-60, 3, 4, 150, -90, 0, 0, 0), (-60, 0, 0, 0, 0, 120, 70, 2e4)])
+def test_quantem_aberration_convention(coef):
+    """S-matrix coefficients converted with quantem_aberrations give QuantEM's probe the same phase (and back)."""
+    pytest.importorskip("quantem")
+    from quantem.diffractive_imaging.complex_probe import fourier_space_probe
+    N, dr = 48, 0.2
+    q = np.fft.fftfreq(N, dr)
+    qy, qx = np.meshgrid(q, q, indexing="ij")
+    B = sj.aberration_basis(torch.as_tensor(qy.ravel()), torch.as_tensor(qx.ravel()), SETUP.lam).numpy()
+    c = np.array(coef, float)
+    ours = np.exp(-1j * (c @ B).reshape(N, N))
+    qa = rr.quantem_aberrations(c)
+    Fq = fourier_space_probe((N, N), (dr, dr), SETUP.energy_ev, 1e3 * SETUP.alpha, soft_edges=False,
+                             aberration_coefs=qa).numpy()
+    ap = np.hypot(qy, qx) <= 0.97 * SETUP.alpha / SETUP.lam
+    d = np.angle(Fq * np.conj(ours))[ap]
+    d = np.angle(np.exp(1j * (d - d.mean())))
+    assert np.sqrt((d ** 2).mean()) < 1e-3
+    back = rr.smatrix_aberrations(qa)
+    assert np.allclose([back[nm] for nm in sj.NAMES], c, atol=1e-6 * max(1, abs(c).max()))

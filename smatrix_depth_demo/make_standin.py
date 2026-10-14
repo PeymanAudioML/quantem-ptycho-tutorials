@@ -6,7 +6,9 @@ pixel, padded scan positions, computational cell), probe.zarr (entrance probe, r
 potential.zarr (projected potential per slice, eV/e * A) and atoms.extxyz.
 
 Specimen: 100 A slab at 300 kV, 20 mrad; two 3-atom phase clusters (1 rad per atom) at depths 30 and 70 A at different
-lateral positions; probe focus depths 83, 50, 17 A (defocus = -C10, abTEM / QuantEM sign).  The patterns come from the
+lateral positions; nominal probe focus depths 83, 50, 17 A (defocus = -C10, abTEM / QuantEM sign).  The true probes of
+datasets 1 and 2 differ from the metadata by ERRORS (defocus and two-fold astigmatism, as in M0-M2); probe.zarr holds the
+true probe, so the comparison shows whether a method recovers it.  The patterns come from the
 built-in multislice (demo_simple_joint.simulate), so the probe and depths are known exactly.
 
     python make_standin.py out_dir            # -> out_dir/def_083, def_050, def_017
@@ -20,7 +22,9 @@ import demo_simple_joint as demo
 
 T = 100.0
 SETUP = sj.Setup(energy_ev=300e3, alpha=20e-3, dr=0.2, K=32, Y=64)
-FOCI = [83.0, 50.0, 17.0]
+FOCI = [83.0, 50.0, 17.0]                                 # nominal focus depths, as written to the metadata
+ERRORS = [(0.0, 0.0, 0.0), (6.0, 8.0, -5.0), (-5.0, -4.0, 6.0)]  # true - nominal (C10, C12a, C12b) [A] per dataset;
+                                                          # dataset 0 is the S-matrix gauge (reference) and stays exact
 CLUSTERS = [((4.8, 4.8), 30.0), ((8.0, 8.0), 70.0)]       # (lateral centre (A, cell frame), depth A)
 STEP_PX = 2
 SLICE = 2.0
@@ -61,6 +65,7 @@ def main(out, dose=1e5, seed=0):
     positions = np.stack(np.meshgrid(g, g, indexing="ij"), -1)
     coeffs = np.zeros((len(FOCI), len(sj.NAMES)))
     coeffs[:, 0] = [-f for f in FOCI]
+    coeffs[:, :3] += np.array(ERRORS)
     dps = demo.simulate(SETUP, layers, layer_z, T, coeffs, positions, dose=dose, seed=seed)
     sig = sigma_interaction(SETUP.energy_ev)
     nz = int(round(T / SLICE))
@@ -88,7 +93,6 @@ def main(out, dose=1e5, seed=0):
         write_group(sim, {})
         write_group(os.path.join(sim, "probe"), {"energy_eV": SETUP.energy_ev, "semiangle_cutoff_mrad": 1e3 * SETUP.alpha,
                                                  "defocus_A": f})
-        write_group(os.path.join(sim, "probe", "aberrations"), {"C12": 0.0, "phi12": 0.0})
         write_group(os.path.join(sim, "geometry"), {"defocus_reference": "computational-cell entrance, z=0"})
         write_array(os.path.join(sim, "geometry", "computational_cell_A"), np.array([SETUP.Y * SETUP.dr] * 2 + [T]))
         write_group(os.path.join(sim, "detector"), {})
@@ -110,7 +114,8 @@ def main(out, dose=1e5, seed=0):
             for y, x, z in atoms:
                 fh.write(f"Au {y:.4f} {x:.4f} {z:.4f}\n")
         print(f"wrote {root}: {dps[d].shape[:2]} scan, {SETUP.K}x{SETUP.K} patterns, focus depth {f} A")
-    json.dump(dict(cluster_depths=layer_z, foci=FOCI, thickness=T), open(os.path.join(out, "truth.json"), "w"))
+    json.dump(dict(cluster_depths=layer_z, foci=FOCI, thickness=T, true_coefficients=coeffs[:, :3].tolist(),
+                   names=sj.NAMES[:3]), open(os.path.join(out, "truth.json"), "w"))
 
 
 if __name__ == "__main__":

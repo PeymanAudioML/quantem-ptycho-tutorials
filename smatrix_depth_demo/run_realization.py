@@ -2,9 +2,14 @@
 
     1. S-matrix stage (simple_joint): joint S-matrix + probe fit on ALL defocus datasets, refocus through the depth,
        slice locations (focus curve peaks + per-feature depths), probe (aberrations per dataset).
-    2. QuantEM multislice on ONE dataset, two arms with the same number of planes, iterations and optimiser:
-         uniform   uniform slices, flat potential                       (QuantEM on its own)
-         sinit     S-informed slices + S-informed potential (quantem_export), probe defocus from the S-matrix fit
+    2. QuantEM multislice on ONE dataset; arms (--arms) with the same number of planes, iterations and optimiser.
+       QuantEM updates BOTH object and probe in every arm: object only for --probe-warmup iterations, then both.
+         baseline  uniform slices, flat potential, nominal probe (metadata defocus)       (QuantEM on its own)
+         sprobe    uniform slices, flat potential, full S-matrix probe                     (probe hand-over only)
+         sinit     S-informed slices, S-informed potential (--init-object), full S-matrix probe
+       Full S-matrix probe = every fitted aberration (C10, C12 astigmatism, ...) converted to QuantEM's polar
+       convention (quantem_aberrations; the azimuth axes differ), as a pixelated probe or, with
+       --probe-model parametric, as QuantEM aberration coefficients that QuantEM keeps refining.
     3. Images (.png) and arrays (.npy) of every probe and object, the slice grids used to start QuantEM, and, when the
        ground truth sits next to the data (potential.zarr, probe.zarr, atoms.extxyz), a comparison of all of them.
 
@@ -249,8 +254,23 @@ def smatrix_stage(dsets, a, out, log):
                 layers=list(map(float, layers)), features=feats, depth_sigma=sigma_z, captured=captured,
                 geometry=checks, crop=[c0, c1])
     json.dump(info, open(os.path.join(o, "smatrix.json"), "w"), indent=1, default=float)
+    np.savez(os.path.join(o, "stage.npz"), phase=phase.astype(np.float32), curve=curve, psi=psi, probes=probes,
+             energy=setup.energy_ev, alpha=setup.alpha)                 # for --reuse-smatrix
     return dict(setup=setup, coeff=coeff, nominal=nominal, zg=zg, phase=phase, curve=curve, layers=layers, feats=feats,
                 sigma_z=sigma_z, probes=probes, crop=(c0, c1), psi=psi, ky=ky, kx=kx, hist=hist, info=info)
+
+
+def load_smatrix(out):
+    """S-matrix stage results saved by a previous run (--reuse-smatrix): rerun QuantEM without refitting."""
+    o = os.path.join(out, "smatrix")
+    info = json.load(open(os.path.join(o, "smatrix.json")))
+    z = np.load(os.path.join(o, "stage.npz"))
+    setup = sj.Setup(energy_ev=float(z["energy"]), alpha=float(z["alpha"]), dr=info["dr"], K=info["K"], Y=info["Y"])
+    ky, kx = setup.beams()
+    return dict(setup=setup, coeff=np.array(info["coefficients"]), nominal=np.array(info["nominal"]),
+                zg=np.load(os.path.join(o, "depth_grid.npy")), phase=z["phase"], curve=z["curve"], layers=info["layers"],
+                feats=info["features"], sigma_z=info["depth_sigma"], probes=z["probes"], crop=tuple(info["crop"]),
+                psi=z["psi"], ky=ky, kx=kx, hist=list(np.load(os.path.join(o, "loss.npy"))), info=info)
 
 
 def parabolic(y, i):
@@ -277,11 +297,75 @@ def local_peaks(z, c, n, frac=0.25, min_sep=0.0):
 
 
 # ------------------------------------------------------------------------------------------------ QuantEM stage
+ARMS = {                         # name: (slices, object, probe)
+    "baseline": ("uniform", "flat", "nominal"),        # QuantEM on its own
+    "sprobe": ("uniform", "flat", "smatrix"),          # only the S-matrix probe (isolates the probe hand-over)
+    "sinit": ("smatrix", None, "smatrix"),             # everything from the S-matrix stage (object: --init-object)
+}
+
+
+def quantem_aberrations(coeff):
+    """S-matrix aberrations (simple_joint, Cartesian, azimuth from the 2nd array axis) -> QuantEM polar coefficients
+    (C_nm, phi_nm, azimuth from the 1st array axis).  phi_Q = pi/2 - phi_S, so a cos(m phi_S) + b sin(m phi_S) =
+    A cos(m phi_Q) + B sin(m phi_Q) with A = a cos(m pi/2) + b sin(m pi/2), B = a sin(m pi/2) - b cos(m pi/2).
+    Checked against quantem.complex_probe.fourier_space_probe (tests/test_run_realization.py)."""
+    out = {}
+    for nm, (n, m, comp) in sj.ABERRATIONS.items():
+        v = float(coeff[sj.NAMES.index(nm)])
+        if comp is None:
+            out[f"C{n}{m}"] = v
+        elif comp == "a":
+            b = float(coeff[sj.NAMES.index(nm[:-1] + "b")])
+            A = v * math.cos(m * math.pi / 2) + b * math.sin(m * math.pi / 2)
+            B = v * math.sin(m * math.pi / 2) - b * math.cos(m * math.pi / 2)
+            out[f"C{n}{m}"] = math.hypot(A, B)
+            out[f"phi{n}{m}"] = math.atan2(B, A) / m
+    return out
+
+
+def smatrix_aberrations(q):
+    """Inverse of quantem_aberrations for the coefficients present in q -> {simple_joint name: value}."""
+    out = {}
+    for nm, (n, m, comp) in sj.ABERRATIONS.items():
+        C = float(q.get(f"C{n}{m}", 0.0))
+        if comp is None:
+            if f"C{n}{m}" in q:
+                out[nm] = C
+        elif comp == "a" and f"C{n}{m}" in q:
+            phi = float(q.get(f"phi{n}{m}", 0.0))
+            A, B = C * math.cos(m * phi), C * math.sin(m * phi)
+            c, s = math.cos(m * math.pi / 2), math.sin(m * math.pi / 2)
+            out[nm], out[nm[:-1] + "b"] = A * c + B * s, A * s - B * c
+    return out
+
+
+def volume_potential(sm, grid, shape, dr_q, origin, power):
+    """Initial potential from the refocused S-matrix volume: projected phase map P (refocused phase at mid-depth,
+    clipped >= 0, zero outside the scanned field) split over the slabs by each pixel's depth weight |phase(z)|^power.
+    Projected phase is conserved per pixel."""
+    from scipy.ndimage import map_coordinates
+    setup, zg, ph = sm["setup"], sm["zg"], sm["phase"]
+    c0, c1 = sm["crop"]
+    T = grid.thickness
+    inside = (zg >= 0) & (zg <= T)
+    P = np.zeros(ph.shape[1:])
+    P[c0:c1, c0:c1] = np.clip(ph[int(np.argmin(np.abs(zg - T / 2))), c0:c1, c0:c1], 0, None)
+    W = np.abs(ph[inside]) ** power
+    zi = zg[inside]
+    b = grid.boundaries
+    F = np.stack([W[(zi >= b[k]) & ((zi < b[k + 1]) | (k == grid.num_slices - 1))].sum(0) for k in range(grid.num_slices)])
+    F /= np.maximum(F.sum(0, keepdims=True), 1e-30)
+    rows = (origin[0] + np.arange(shape[0]) * dr_q) / setup.dr
+    cols = (origin[1] + np.arange(shape[1]) * dr_q) / setup.dr
+    yy, xx = np.meshgrid(rows, cols, indexing="ij")
+    return np.stack([map_coordinates(F[k] * P, [yy, xx], order=1, cval=0.0) for k in range(grid.num_slices)])
+
+
 def quantem_stage(d, sm, a, out, log):
     from quantem.core.datastructures import Dataset4dstem
     from quantem.core.ml import OptimizerParams
-    from quantem.diffractive_imaging import (PtychographyDatasetRaster, ProbePixelated, DetectorPixelated, Ptychography,
-                                             ObjectPixelated)
+    from quantem.diffractive_imaging import (PtychographyDatasetRaster, ProbePixelated, ProbeParametric,
+                                             DetectorPixelated, Ptychography, ObjectPixelated)
     setup, T = sm["setup"], a.thickness
     lam = setup.lam
     x = d["data"]
@@ -298,11 +382,22 @@ def quantem_stage(d, sm, a, out, log):
     pdset.preprocess(com_fit_function="constant", probe_energy=d["energy"], force_com_rotation=0,
                      force_com_transpose=False, plot_rotation=False, plot_com=False)
     qd = a.quantem_dataset
-    defocus = float(-sm["coeff"][qd, 0]) if a.quantem_probe == "smatrix" else float(d["defocus"])
+    names = sj.NAMES
+    trained = [nm for nm in a.trainable.split(",")]
+    s_coeff = np.zeros(len(names))
+    for nm in set(trained) | {"C10"}:
+        s_coeff[names.index(nm)] = sm["coeff"][qd, names.index(nm)]
+    probe_sets = {"smatrix": quantem_aberrations(s_coeff),
+                  "nominal": quantem_aberrations(np.r_[-d["defocus"], np.zeros(len(names) - 1)])}
+    keep = {"C10"} | {f"{p}{nm[1:3]}" for nm in trained if nm != "C10" for p in ("C", "phi")}
+    probe_sets = {k: {q: v for q, v in p.items() if q in keep} for k, p in probe_sets.items()}
 
-    def ptycho(obj, seed):
-        probe = ProbePixelated.from_params(num_probes=1, probe_params={
-            "energy": d["energy"], "defocus": defocus, "semiangle_cutoff": d["alpha_mrad"]})
+    def ptycho(obj, seed, which):
+        params = {"energy": d["energy"], "semiangle_cutoff": d["alpha_mrad"], **probe_sets[which]}
+        if a.probe_model == "parametric":
+            probe = ProbeParametric.from_params(probe_params=params, learn_aberrations=True)
+        else:
+            probe = ProbePixelated.from_params(num_probes=1, probe_params=params)
         pt = Ptychography.from_models(dset=pdset, obj_model=obj, probe_model=probe, detector_model=DetectorPixelated(),
                                       device=a.qdevice, rng=seed)
         pt.preprocess(obj_padding_px=(PAD, PAD), batch_size=a.quantem_batch)
@@ -319,44 +414,82 @@ def quantem_stage(d, sm, a, out, log):
     if n < 2:
         raise ValueError("fewer than 2 slices; lower --dz-max")
     probe_pt = ptycho(ObjectPixelated.from_uniform(num_slices=n, slice_thicknesses=float(g_u.slice_thicknesses[0]),
-                                                   obj_type="potential"), 0)
+                                                   obj_type="potential"), 0, "nominal")
     shape = tuple(int(v) for v in probe_pt.obj_shape_full[1:])
     dr_q = float(np.asarray(probe_pt.sampling)[0])
     p0 = probe_pt.dset.scan_positions_px.detach().cpu().numpy().min(axis=0)
     origin = (setup.K / 2 * setup.dr - p0[0] * dr_q, setup.K / 2 * setup.dr - p0[1] * dr_q)
-    log(f"QuantEM: dataset {qd} (focus {d['defocus']:.1f} A nominal, probe defocus {defocus:.1f} A from "
-        f"{a.quantem_probe}), object {shape} px at {dr_q:.4f} A, {n} planes; S-informed slab thicknesses "
-        f"{np.round(g_s.slab_thicknesses, 1).tolist()} A")
+    ky, kx = sm["ky"], sm["kx"]
+    s_probe = probe_at_beams(sm["probes"][qd], setup.dr, ky, kx)
+    warm = a.iters // 5 if a.probe_warmup is None else a.probe_warmup
+    plr = a.probe_lr if a.probe_lr is not None else (0.2 if a.probe_model == "parametric" else 1e-4)
+    log(f"QuantEM: dataset {qd} (focus {d['defocus']:.1f} A nominal), object {shape} px at {dr_q:.4f} A, {n} planes, "
+        f"{a.probe_model} probe; optimiser: object Adam lr {a.qlr} for {a.iters} iterations, probe Adam lr {plr} from "
+        f"iteration {warm + 1}")
+    log(f"  probe hand-over (QuantEM convention): S-matrix {fmt(probe_sets['smatrix'])}; nominal {fmt(probe_sets['nominal'])}")
+    log(f"  S-informed slab thicknesses {np.round(g_s.slab_thicknesses, 1).tolist()} A")
+    if plr <= 0:
+        log("  warning: probe learning rate 0 -> QuantEM will NOT update the probe")
     res = {}
-    for arm, grid, informed in (("uniform", g_u, False), ("sinit", g_s, True)):
+    for arm in a.arms.split(","):
+        slices, objinit, which = ARMS[arm]
+        objinit = objinit or a.init_object
+        grid = g_s if slices == "smatrix" else g_u
         torch.manual_seed(a.seed)
         np.random.seed(a.seed)
         phi = np.full((grid.num_slices,) + shape, BASE)
-        if informed and cands:
+        if objinit == "candidates" and cands:
             phi += qe.initial_potential(cands, grid, shape, dr_q, origin=origin)
-        pt = ptycho(qe.to_quantem(phi, grid), a.seed)
-        opt = {"object": OptimizerParams.Adam(lr=a.qlr)}
-        if a.probe_lr > 0:
-            opt["probe"] = OptimizerParams.Adam(lr=a.probe_lr)
+        elif objinit == "volume":
+            phi += volume_potential(sm, grid, shape, dr_q, origin, a.volume_power)
+        pt = ptycho(qe.to_quantem(phi, grid), a.seed, which)
+        p_init = np.asarray(pt.probe)[0].copy()
+        handover = probe_match(probe_at_beams(p_init, dr_q, ky, kx), s_probe, ky, kx)
         t0 = time.time()
-        pt.reconstruct(num_iters=a.iters, reset=True, batch_size=a.quantem_batch, device=a.qdevice,
-                       optimizer_params=opt, constraints={"object": {"positivity": True}})
+        cons = {"object": {"positivity": True}}
+        if warm > 0:
+            pt.reconstruct(num_iters=min(warm, a.iters), reset=True, batch_size=a.quantem_batch, device=a.qdevice,
+                           optimizer_params={"object": OptimizerParams.Adam(lr=a.qlr)}, constraints=cons)
+        if a.iters > warm:
+            opt = {"object": OptimizerParams.Adam(lr=a.qlr)}
+            if plr > 0:
+                opt["probe"] = OptimizerParams.Adam(lr=plr)
+            pt.reconstruct(num_iters=a.iters - warm, reset=warm <= 0, batch_size=a.quantem_batch, device=a.qdevice,
+                           optimizer_params=opt, constraints=cons)
         obj = pt.obj_model.obj.detach().cpu().numpy()
         losses = np.asarray(pt.iter_losses, float)
         probe = np.asarray(pt.probe)[0]
+        change = 1.0 - probe_match(probe_at_beams(probe, dr_q, ky, kx), probe_at_beams(p_init, dr_q, ky, kx), ky, kx)[0]
+        learned = None
+        if a.probe_model == "parametric":
+            learned = {k: float(v.detach().cpu()) for k, v in pt.probe_model.aberration_coefs.items()}
         o = os.path.join(out, f"quantem_{arm}")
         os.makedirs(o, exist_ok=True)
         np.save(os.path.join(o, "object_potential.npy"), obj.astype(np.float32))
         np.save(os.path.join(o, "initial_potential.npy"), phi.astype(np.float32))
         np.save(os.path.join(o, "slice_boundaries.npy"), grid.boundaries)
         np.save(os.path.join(o, "probe_real_space.npy"), probe.astype(np.complex64))
+        np.save(os.path.join(o, "initial_probe_real_space.npy"), p_init.astype(np.complex64))
         np.save(os.path.join(o, "loss.npy"), losses)
+        json.dump(dict(slices=slices, object=objinit, probe=which, probe_model=a.probe_model,
+                       probe_params=probe_sets[which], learned_aberrations=learned,
+                       learned_smatrix_convention=smatrix_aberrations(learned) if learned else None,
+                       handover_overlap=handover[0], probe_change=change, iters=a.iters, probe_warmup=warm,
+                       object_lr=a.qlr, probe_lr=plr), open(os.path.join(o, "arm.json"), "w"), indent=1)
         prof = depth_profile(obj, grid, field_px(p0, shape, d, a, dr_q))
-        res[arm] = dict(obj=obj, grid=grid, probe=probe, losses=losses, profile=prof, time=time.time() - t0,
-                        peaks=local_peaks(grid.planes + grid.slab_thicknesses / 2, prof, a.max_layers, frac=0.5))
-        log(f"  {arm:8s} loss {losses[-1]:.5f}, {time.time() - t0:.0f} s, profile peaks "
-            f"{np.round(res[arm]['peaks'], 1).tolist()} A")
-    return dict(arms=res, dr=dr_q, p0=p0, shape=shape, origin=origin, defocus=defocus, g_s=g_s, g_u=g_u, dataset=qd)
+        res[arm] = dict(obj=obj, grid=grid, probe=probe, p_init=p_init, losses=losses, profile=prof,
+                        time=time.time() - t0, spec=(slices, objinit, which), handover=handover, change=change,
+                        learned=learned, peaks=local_peaks(grid.planes + grid.slab_thicknesses / 2, prof, a.max_layers, frac=0.5))
+        log(f"  {arm:8s} [{slices} slices, {objinit} object, {which} probe] loss {losses[-1]:.5f}, "
+            f"{time.time() - t0:.0f} s; initial probe vs S-matrix probe overlap {handover[0]:.4f}; probe changed by "
+            f"{change:.2e} (1 - overlap); profile peaks {np.round(res[arm]['peaks'], 1).tolist()} A"
+            + (f"; learned {fmt(learned)}" if learned else ""))
+    return dict(arms=res, dr=dr_q, p0=p0, shape=shape, origin=origin, g_s=g_s, g_u=g_u, dataset=qd,
+                probe_sets=probe_sets, warm=warm, plr=plr)
+
+
+def fmt(q):
+    return ", ".join(f"{k} {v:.1f} A" if k.startswith("C") else f"{k} {math.degrees(v):.0f} deg" for k, v in q.items())
 
 
 def field_px(p0, shape, d, a, dr_q):
@@ -477,7 +610,7 @@ def report(dsets, sm, qm, tr, a, out, log):
     summary = dict(smatrix=sm["info"])
 
     # probes ---------------------------------------------------------------------------------------------------
-    L += ["## Probe", "", "| dataset | nominal C10 | S-matrix C10 | S-matrix C12a, C12b | truth C10 | "
+    L += ["## Probe", "", "| dataset | nominal C10 | S-matrix C10 | S-matrix C12a, C12b | metadata C10 | "
           "S-matrix probe vs truth (overlap, RMS phase err rad) |", "|---|---|---|---|---|---|"]
     ky, kx = sm["ky"], sm["kx"]
     i10, i12a, i12b = sj.NAMES.index("C10"), sj.NAMES.index("C12a"), sj.NAMES.index("C12b")
@@ -490,22 +623,39 @@ def report(dsets, sm, qm, tr, a, out, log):
             m = f"{ov:.4f}, {rms:.3f}"
             probe_rows.append(dict(dataset=i, smatrix_overlap=ov, smatrix_rms=rms))
         L.append(f"| {i}{' (ref)' if i == a.ref else ''} | {sm['nominal'][i, i10]:.1f} | {sm['coeff'][i, i10]:.1f} | "
-                 f"{sm['coeff'][i, i12a]:.1f}, {sm['coeff'][i, i12b]:.1f} | {-d['defocus']:.1f} (metadata) | {m} |")
+                 f"{sm['coeff'][i, i12a]:.1f}, {sm['coeff'][i, i12b]:.1f} | {-d['defocus']:.1f} | {m} |")
     if qm:
         qd = qm["dataset"]
         t = tr.get("probes", [None] * len(dsets))[qd] if tr else None
-        L += ["", f"QuantEM (dataset {qd}, started from defocus {qm['defocus']:.1f} A"
-              f"{', probe refined' if a.probe_lr > 0 else ', probe fixed'}):", ""]
+        L += ["", "## What QuantEM was started from", "",
+              "| QuantEM input | " + " | ".join(qm["arms"]) + " |", "|---|" + "---|" * len(qm["arms"])]
+        cells = lambda f: " | ".join(f(r) for r in qm["arms"].values())
+        L += [f"| probe | " + cells(lambda r: f"{r['spec'][2]}: {fmt(qm['probe_sets'][r['spec'][2]])}") + " |",
+              f"| probe hand-over check (initial QuantEM probe vs S-matrix probe overlap) | "
+              + cells(lambda r: f"{r['handover'][0]:.4f}") + " |",
+              f"| slice planes | " + cells(lambda r: f"{r['spec'][0]}, {r['grid'].num_slices} slabs") + " |",
+              f"| initial object | " + cells(lambda r: r["spec"][1]) + " |",
+              f"| geometry | " + cells(lambda r: f"{qm['dr']:.3f} A px, z = 0 entrance, defocus = -C10") + " |",
+              f"| optimiser | " + cells(lambda r: f"object lr {a.qlr} x {a.iters} it; {a.probe_model} probe lr "
+                                                   f"{qm['plr']} from it {qm['warm'] + 1}") + " |",
+              f"| probe changed by QuantEM (1 - overlap initial/final) | " + cells(lambda r: f"{r['change']:.2e}") + " |"]
+        if any(r["learned"] for r in qm["arms"].values()):
+            L.append("| learned aberrations (parametric) | " + cells(lambda r: fmt(r["learned"]) if r["learned"] else "-") + " |")
+        L += ["", f"QuantEM results (dataset {qd}):", ""]
         for arm, r in qm["arms"].items():
             line = f"* {arm}: final loss {r['losses'][-1]:.5f}"
             if t is not None:
-                ov, rms = probe_match(probe_at_beams(r["probe"], qm["dr"], ky, kx), probe_at_beams(t[0], t[1], ky, kx), ky, kx)
-                line += f"; probe vs truth overlap {ov:.4f}, RMS phase error {rms:.3f} rad"
-                probe_rows.append(dict(dataset=qd, arm=arm, overlap=ov, rms=rms))
+                ref = probe_at_beams(t[0], t[1], ky, kx)
+                ov0, rms0 = probe_match(probe_at_beams(r["p_init"], qm["dr"], ky, kx), ref, ky, kx)
+                ov, rms = probe_match(probe_at_beams(r["probe"], qm["dr"], ky, kx), ref, ky, kx)
+                line += (f"; probe vs truth: start overlap {ov0:.4f} / RMS phase {rms0:.3f} rad -> "
+                         f"end {ov:.4f} / {rms:.3f} rad")
+                probe_rows.append(dict(dataset=qd, arm=arm, start_overlap=ov0, start_rms=rms0, overlap=ov, rms=rms))
             L.append(line)
     summary["probe"] = probe_rows
 
-    fig, ax = plt.subplots(2, 2 + (2 if qm else 0) + (1 if tr.get("probes") else 0), figsize=(16, 7), squeeze=False)
+    fig, ax = plt.subplots(2, 2 + (len(qm["arms"]) if qm else 0) + (1 if tr.get("probes") else 0),
+                           figsize=(16, 7), squeeze=False)
     qd = qm["dataset"] if qm else a.ref
     items = []
     t = tr.get("probes", [None] * len(dsets))[qd] if tr else None
@@ -547,7 +697,7 @@ def report(dsets, sm, qm, tr, a, out, log):
     for f in sm["feats"]:
         ax.axvline(f["z"], color="k", ls=":", lw=0.8)
     if qm:
-        for (arm, r), c in zip(qm["arms"].items(), ("tab:blue", "tab:red")):
+        for (arm, r), c in zip(qm["arms"].items(), ("tab:blue", "tab:orange", "tab:red", "tab:purple")):
             g = r["grid"]
             ax.step(np.r_[g.planes, T], np.r_[nrm(r["profile"]), nrm(r["profile"])[-1]], where="post", color=c,
                     label=f"QuantEM {arm} (lateral std / A)")
@@ -650,8 +800,8 @@ def report(dsets, sm, qm, tr, a, out, log):
           "Depth is where the optimiser puts the potential; with uniform slices nothing tells it where features are, "
           "the S-informed start (sinit) gives it the S-matrix depths, slice spacing and probe defocus.",
           "", "Files: smatrix/ (probe_real_space.npy, refocused_phase.npy, focus_curve.npy, smatrix.json, sections.png), "
-          "quantem_uniform/ and quantem_sinit/ (object_potential.npy, initial_potential.npy, slice_boundaries.npy, "
-          "probe_real_space.npy, loss.npy, slices.png), probes.png, depth_profiles.png, objects.png, summary.json."]
+          "quantem_<arm>/ (object_potential.npy, initial_potential.npy, slice_boundaries.npy, probe_real_space.npy, "
+          "initial_probe_real_space.npy, loss.npy, arm.json, slices.png), probes.png, depth_profiles.png, objects.png, summary.json."]
     open(os.path.join(out, "REPORT.md"), "w").write("\n".join(L) + "\n")
     json.dump(summary, open(os.path.join(out, "summary.json"), "w"), indent=1, default=float)
     log("\n".join(L))
@@ -718,11 +868,18 @@ def main():
     ap.add_argument("--no-quantem", action="store_true")
     ap.add_argument("--quantem-dataset", type=int, default=None, help="default: focus nearest mid-specimen")
     ap.add_argument("--quantem-bin", type=int, default=1)
-    ap.add_argument("--quantem-probe", default="smatrix", choices=["smatrix", "nominal"],
-                    help="probe defocus for both QuantEM arms")
+    ap.add_argument("--arms", default="baseline,sinit", help=f"comma list of {list(ARMS)}")
+    ap.add_argument("--init-object", default="candidates", choices=["candidates", "volume", "flat"],
+                    help="sinit object: Gaussians at the S-matrix features, or the refocused S-matrix volume")
+    ap.add_argument("--volume-power", type=float, default=4.0, help="depth weight |phase(z)|^p for --init-object volume")
+    ap.add_argument("--probe-model", default="pixelated", choices=["pixelated", "parametric"])
     ap.add_argument("--iters", type=int, default=100)
     ap.add_argument("--qlr", type=float, default=5e-3, help="QuantEM object learning rate")
-    ap.add_argument("--probe-lr", type=float, default=1e-3, help="QuantEM probe learning rate (0 = fixed probe)")
+    ap.add_argument("--probe-lr", type=float, default=None,
+                    help="QuantEM probe learning rate (default 1e-4 pixelated, 0.2 A parametric; 0 = fixed probe). "
+                         "Stand-in: 1e-3 degraded a good S-matrix probe from 0.04 to 0.21 rad RMS, 1e-4 kept 0.07")
+    ap.add_argument("--probe-warmup", type=int, default=None, help="object-only iterations first (default iters/5)")
+    ap.add_argument("--reuse-smatrix", action="store_true", help="load the S-matrix stage from --out instead of refitting")
     ap.add_argument("--quantem-batch", type=int, default=64)
     ap.add_argument("--dz-max", type=float, default=None, help="thickest S-informed slab [A] (default T/12)")
     ap.add_argument("--dz-min", type=float, default=None, help="thinnest S-informed slab [A] (default T/40)")
@@ -757,7 +914,11 @@ def main():
             f"dk {d['dk'][0]:g} 1/A, {d['energy'] / 1e3:g} kV, {d['alpha_mrad']:g} mrad, focus depth {d['defocus']:g} A")
     if a.quantem_dataset is None:
         a.quantem_dataset = int(np.argmin([abs(d["defocus"] - a.thickness / 2) for d in dsets]))
-    sm = smatrix_stage(dsets, a, a.out, log)
+    if a.reuse_smatrix:
+        sm = load_smatrix(a.out)
+        log(f"S-matrix stage loaded from {a.out}/smatrix (C10 {np.round(sm['coeff'][:, 0], 1).tolist()} A)")
+    else:
+        sm = smatrix_stage(dsets, a, a.out, log)
     qm = None
     if not a.no_quantem:
         qm = quantem_stage(dsets[a.quantem_dataset], sm, a, a.out, log)
