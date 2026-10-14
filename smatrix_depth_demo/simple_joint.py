@@ -377,12 +377,14 @@ def _template_at(templates, z0_grid, z):
     return (1 - t) * templates[j] + t * templates[j + 1]
 
 
-def fit_depths_joint(R, templates, z0_grid, n_features, min_sep=20.0, refine=10.0, step=2.0):
+def fit_depths_joint(R, templates, z0_grid, n_features, min_sep=20.0, refine=10.0, step=2.0, nuisance=None):
     """Joint depth fit of `n_features` features whose responses overlap.
 
     R: (m, Nz) complex responses (one row per lateral footprint; m = 1 for a single column).  Model:
         R_i(z) = sum_k A_ik h(z; z_k) + b_i        (A, b complex, solved by least squares for every depth set)
     Depth sets are searched on the template grid (features >= min_sep apart), then refined +-refine A in `step` A.
+    nuisance: optional (Nz, k) complex basis of background responses (e.g. from `background_basis`), fitted with free
+    complex coefficients alongside the features, for depth-varying backgrounds the constant b cannot absorb.
     Returns (depths sorted, relative residual = ||R - model||^2 / ||R - mean||^2)."""
     import itertools
     z0_grid = np.asarray(z0_grid, float)
@@ -390,9 +392,13 @@ def fit_depths_joint(R, templates, z0_grid, n_features, min_sep=20.0, refine=10.
     Rc = (R - R.mean(axis=1, keepdims=True)).T                      # (Nz, m)
     norm = max(np.linalg.norm(Rc) ** 2, 1e-30)
 
+    Nb = None if nuisance is None else np.asarray(nuisance, complex) - np.asarray(nuisance, complex).mean(axis=0)
+
     def cost(zs):
         H = np.array([_template_at(templates, z0_grid, z) for z in zs]).T
         H = H - H.mean(axis=0)
+        if Nb is not None:
+            H = np.hstack([H, Nb])
         A = np.linalg.lstsq(H, Rc, rcond=None)[0]
         return np.linalg.norm(Rc - H @ A) ** 2 / norm
 
@@ -469,3 +475,26 @@ def check_geometry(setup, positions, nominal, thickness, abtem=False, min_ratio=
     if strict and bad:
         raise ValueError("geometry check failed: " + ", ".join(c["check"] for c in bad))
     return checks
+
+
+def background_basis(volume, weight, n_components=4, n_samples=300, margin=None, seed=0):
+    """(Nz, k) principal components of background responses: `feature_response` of a FEATURE-FREE refocused volume
+    (Nz, Y, X) with `weight` shifted to `n_samples` random lateral positions (whole-pixel rolls, kept `margin` px from
+    the edges).  Use with fit_depths_joint(..., nuisance=...) on data whose background has the same statistics.
+    Caution (M3, 100 A, Au in carbon): carbon produces the same kind of depth response as the feature, so even 2
+    components let the fit absorb the feature itself (residual -> 0, depth errors up to ~90 A).  Not recommended for
+    atom-like backgrounds; kept for smooth, non-atomic backgrounds."""
+    vol = np.asarray(volume)
+    w = np.asarray(weight, float)
+    Y, X = w.shape
+    m = margin if margin is not None else Y // 4
+    rng = np.random.default_rng(seed)
+    cy, cx = np.unravel_index(np.argmax(w), w.shape)
+    rows = []
+    for _ in range(n_samples):
+        ty, tx = rng.integers(m, Y - m), rng.integers(m, X - m)
+        rows.append(feature_response(vol, np.roll(w, (ty - cy, tx - cx), axis=(0, 1))))
+    A = np.array(rows)
+    A = A - A.mean(axis=1, keepdims=True)
+    _, _, vh = np.linalg.svd(A, full_matrices=False)
+    return vh[:n_components].T
