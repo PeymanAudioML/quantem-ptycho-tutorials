@@ -17,3 +17,4 @@ results_m0/*.npy
 results_m1/*.npy
 results_m2/*.npy
 results_m3_T*/*.npy
+results_contrast/*/*.npy
