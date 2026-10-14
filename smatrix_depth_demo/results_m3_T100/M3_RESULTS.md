@@ -10,14 +10,14 @@ Au cluster in amorphous carbon, abTEM data, joint S + probe fit. Differential te
 | background-subtracted (oracle) | 10 | 0 | 11.0 | +1.0 | 0.0011 |
 | raw | 50 | 0 | 50.7 | +0.7 | 0.0686 |
 | background-subtracted (oracle) | 50 | 0 | 49.7 | -0.3 | 0.0012 |
-| raw | 90 | 0 | 99.7 | +9.7 | 0.0136 |
-| background-subtracted (oracle) | 90 | 0 | 91.3 | +1.3 | 0.0027 |
+| raw | 90 | 0 | 99.7 | +9.7 | 0.0568 |
+| background-subtracted (oracle) | 90 | 0 | 93.3 | +3.3 | 0.0013 |
 | raw | 10 | 1 | 0.0 | -10.0 | 0.0418 |
 | background-subtracted (oracle) | 10 | 1 | 11.0 | +1.0 | 0.0006 |
 | raw | 50 | 1 | 50.7 | +0.7 | 0.0419 |
 | background-subtracted (oracle) | 50 | 1 | 49.7 | -0.3 | 0.0015 |
-| raw | 90 | 1 | 99.7 | +9.7 | 0.0095 |
-| background-subtracted (oracle) | 90 | 1 | 91.3 | +1.3 | 0.0031 |
+| raw | 90 | 1 | 99.7 | +9.7 | 0.0590 |
+| background-subtracted (oracle) | 90 | 1 | 92.3 | +2.3 | 0.0024 |
 
 Residual floor (2 x max raw single-feature residual, noise 0): 0.1371
 
@@ -27,13 +27,13 @@ Residual floor (2 x max raw single-feature residual, noise 0): 0.1371
 |---|---|---|---|
 | 10 | 1 | [0.0] | 0.0418 |
 | 50 | 1 | [50.7] | 0.0419 |
-| 90 | 1 | [99.7] | 0.0095 |
+| 90 | 1 | [99.7] | 0.0590 |
 
 ## Two clusters at 50 -/+ d/2 (raw)
 
 | d | truth | selected | 2-feature fit | res 1 | res 2 |
 |---|---|---|---|---|---|
-| 40 | [30.0, 70.0] | [50.7] | [59.0, 91.3] | 0.0150 | 0.0006 |
+| 40 | [30.0, 70.0] | [50.7] | [0.0, 58.0] | 0.0150 | 0.0010 |
 | 60 | [20.0, 80.0] | [48.7] | [27.7, 75.7] | 0.0518 | 0.0003 |
 | 80 | [10.0, 90.0] | [43.3] | [0.0, 84.0] | 0.1196 | 0.0086 |
 
