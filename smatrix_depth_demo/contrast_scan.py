@@ -97,7 +97,7 @@ def analyze_combo(n, rho, device):
     bt = sj.feature_response(V("tmpl_bg"), tw) if rho > 0 else 0.0
     bs = sj.feature_response(V("test_bg"), w) if rho > 0 else 0.0
     h = np.array([sj.feature_response(V(f"tmpl_z{z:.0f}"), tw) - bt for z in TEMPLATE_Z])
-    kw = dict(refine=TEMPLATE_Z[1] - TEMPLATE_Z[0], step=1.0, min_sep=10.0)
+    kw = dict(refine=TEMPLATE_Z[1] - TEMPLATE_Z[0], step=1.0, min_sep=10.0, max_phase=np.pi / 4)
     row = dict(au=n, rho=rho, raw=[], oracle=[], res_single=[], contrast=[])
     for z in TEST_Z:
         r = sj.feature_response(V(f"test_z{z:.0f}"), w)

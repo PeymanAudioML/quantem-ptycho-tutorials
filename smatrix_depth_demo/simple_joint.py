@@ -377,7 +377,8 @@ def _template_at(templates, z0_grid, z):
     return (1 - t) * templates[j] + t * templates[j + 1]
 
 
-def fit_depths_joint(R, templates, z0_grid, n_features, min_sep=20.0, refine=10.0, step=2.0, nuisance=None):
+def fit_depths_joint(R, templates, z0_grid, n_features, min_sep=20.0, refine=10.0, step=2.0, nuisance=None,
+                     max_phase=None):
     """Joint depth fit of `n_features` features whose responses overlap.
 
     R: (m, Nz) complex responses (one row per lateral footprint; m = 1 for a single column).  Model:
@@ -385,6 +386,11 @@ def fit_depths_joint(R, templates, z0_grid, n_features, min_sep=20.0, refine=10.
     Depth sets are searched on the template grid (features >= min_sep apart), then refined +-refine A in `step` A.
     nuisance: optional (Nz, k) complex basis of background responses (e.g. from `background_basis`), fitted with free
     complex coefficients alongside the features, for depth-varying backgrounds the constant b cannot absorb.
+    max_phase: limit [rad] on the phase of each feature amplitude A_ik relative to its template (None = free).  With
+    defoci symmetric about the slab middle, h(T - z) ~ -h(z), so a free complex amplitude (A ~ -1) can place a feature
+    at its mirror depth T - z; features of the same kind as the template have A ~ positive real.  M3 (Au in carbon,
+    100 A): free amplitudes put 10 / 90 A at 100 / 4 A; max_phase = pi/4 gives 0 / 100 A (the carbon bias only).
+    The limit is applied by clipping the least-squares amplitudes' phases (approximate for several features).
     Returns (depths sorted, relative residual = ||R - model||^2 / ||R - mean||^2)."""
     import itertools
     z0_grid = np.asarray(z0_grid, float)
@@ -400,6 +406,9 @@ def fit_depths_joint(R, templates, z0_grid, n_features, min_sep=20.0, refine=10.
         if Nb is not None:
             H = np.hstack([H, Nb])
         A = np.linalg.lstsq(H, Rc, rcond=None)[0]
+        if max_phase is not None:
+            Af = A[:n_features]
+            A[:n_features] = np.abs(Af) * np.exp(1j * np.clip(np.angle(Af), -max_phase, max_phase))
         return np.linalg.norm(Rc - H @ A) ** 2 / norm
 
     ok = lambda zs: all(b - a >= min_sep for a, b in zip(zs, zs[1:]))

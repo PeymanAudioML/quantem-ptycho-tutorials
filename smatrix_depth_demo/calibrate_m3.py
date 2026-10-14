@@ -175,7 +175,7 @@ def analyze(a):
                                                      device=dev), wt)
     bg_t = R("tmpl_bg", tw)
     h = np.array([R(f"tmpl_z{z:.0f}", tw) - bg_t for z in zt])         # differential pipeline templates
-    kw = dict(refine=zt[1] - zt[0], step=1.0, min_sep=10.0)
+    kw = dict(refine=zt[1] - zt[0], step=1.0, min_sep=10.0, max_phase=np.pi / 4)
     bg = {n: R(f"test_bg_n{n}", w) for n in (0, 1)}
     raw = {(z, n): R(f"test_z{z:.0f}_n{n}", w) for z, n in tests}
     rep = {"thickness": T, "single": [], "negative_control": [], "pairs": []}
