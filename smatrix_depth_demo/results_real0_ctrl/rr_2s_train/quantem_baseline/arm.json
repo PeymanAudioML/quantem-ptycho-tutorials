@@ -1,0 +1,27 @@
+{
+ "slices": "uniform",
+ "object": "flat",
+ "probe": "nominal",
+ "probe_model": "parametric",
+ "probe_params": {
+  "C10": -500.0,
+  "C12": 0.0,
+  "phi12": 0.0
+ },
+ "learned_aberrations": {
+  "C10": -492.1105041503906,
+  "C12": 0.26794156432151794,
+  "phi12": 1.442512035369873
+ },
+ "learned_smatrix_convention": {
+  "C10": -492.1105041503906,
+  "C12a": 0.2591708824020833,
+  "C12b": 0.06799364386461164
+ },
+ "handover_overlap": 0.9974287293221699,
+ "probe_change": 0.0022456190746144022,
+ "iters": 200,
+ "probe_warmup": 40,
+ "object_lr": 0.005,
+ "probe_lr": 0.2
+}

@@ -1,0 +1,27 @@
+{
+ "slices": "uniform",
+ "object": "flat",
+ "probe": "nominal",
+ "probe_model": "parametric",
+ "probe_params": {
+  "C10": -500.0,
+  "C12": 0.0,
+  "phi12": 0.0
+ },
+ "learned_aberrations": {
+  "C10": -500.0,
+  "C12": 0.0,
+  "phi12": 0.0
+ },
+ "learned_smatrix_convention": {
+  "C10": -500.0,
+  "C12a": 0.0,
+  "C12b": 0.0
+ },
+ "handover_overlap": 0.9974287293221699,
+ "probe_change": 0.0,
+ "iters": 200,
+ "probe_warmup": 40,
+ "object_lr": 0.005,
+ "probe_lr": 0.0
+}
