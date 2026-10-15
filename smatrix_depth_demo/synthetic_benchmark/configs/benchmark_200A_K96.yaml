@@ -1,0 +1,80 @@
+# Synthetic 4D-STEM benchmark, 200 A specimens (version 2, option A of reports/STAGE1_CHECKPOINT.md).
+# Changes from version 1 (benchmark_200A.yaml, K = 48, hard aperture): window K = 96, 2 mrad soft aperture edge in the
+# simulated probe and in both reconstruction models, grid Y = 288, 53 x 53 scan (ratio 0.739).  The soft edge adds the
+# beams between 20 and 21 mrad (1313 beams), which drops Y = 192 / 49 x 49 to ratio 0.686 < 0.7 (strict check fails),
+# so the grid and scan grow; the scan step stays 0.4 A.  Reason: with a
+# hard aperture and a 9.6 A window the periodic-window forward models miss the data by 5x the Au signal; here 0.03x.
+# All lengths in Angstrom.
+# Coordinate convention (all saved files): array axis 0 = ase x, axis 1 = ase y, z = depth below the entrance (0..T).
+# simple_joint labels axis 0 "y" internally; aberration azimuths (C12a/b) are those of simple_joint:
+# phi = atan2(k_axis0, k_axis1).  QuantEM receives them converted (run_realization.quantem_aberrations).
+version: 1
+name: benchmark_200A_K96
+
+microscope:
+  energy_ev: 300000.0
+  alpha_mrad: 20.0
+  aperture_taper_mrad: 2.0  # amplitude 1 -> 0 linearly between 19 and 21 mrad (Setup.aperture)
+
+sampling:
+  dr_A: 0.2            # simulation and S-matrix pixel
+  K: 96                # S-matrix window = detector (window variant)
+  Y: 288               # S-matrix lateral grid = abTEM cell (periodic, 57.6 A)
+  scan_step_px: 2      # 0.4 A
+  scan_shape: [53, 53]
+  scan_start_px: 92    # first scan position (window centre); scan centred on the cell (px 144)
+
+specimen:
+  thickness_A: 200.0
+  potential_slice_A: 2.0     # abTEM slicing (simulation discretisation, not an imaging resolution)
+  z_eps_A: 0.001             # atoms are kept in [z_eps, T - z_eps] (abTEM wraps z = T into slice 0)
+
+defocus:
+  reference: 0               # gauge dataset: its nominal aberrations are exact and stay fixed in the S-matrix fit
+  nominal_C10: [-166.7, -100.0, -33.3]      # focus depth = -C10
+  perturbations:             # true - nominal: [C10, C12a, C12b]
+    - [0.0, 0.0, 0.0]
+    - [12.0, 6.0, -4.0]
+    - [-10.0, -3.0, 5.0]
+
+detector:
+  variants: [window, pixelated]   # window: |FFT|^2 of the K x K exit-wave window (S-matrix model);
+                                  # pixelated: abTEM PixelatedDetector on the full exit wave, 2 x 2 pixel integration
+noise:
+  dose_per_pattern: 1.0e5         # incident electrons per pattern; expected counts = intensity fraction x dose
+  seed: 20261015
+
+cluster:
+  n_atoms: 3
+  spread_A: 2.0                   # calibrate_m3.gold_cluster: random, >= 2.5 A apart within +-spread of the centre
+  seed: 11
+
+specimens:                        # features: Au clusters (calibrate_m3.gold_cluster, seed) at depth z, lateral offset
+                                  # from the cell centre [A]; carbon: calibrate_m3.carbon (jittered lattice, density
+                                  # atoms/A^3, seed), atoms within 2 A of Au removed
+  # --- A: single Au cluster in vacuum
+  A_z40:  {group: au_single, features: [{z: 40.0, seed: 11}]}
+  A_z100: {group: au_single, features: [{z: 100.0, seed: 11}]}
+  A_z160: {group: au_single, features: [{z: 160.0, seed: 11}]}
+  # --- B: two clusters, same lateral centre, different depths (different atom arrangements)
+  B1_50_150: {group: au_pair, features: [{z: 50.0, seed: 11}, {z: 150.0, seed: 22}]}
+  B2_70_130: {group: au_pair, features: [{z: 70.0, seed: 11}, {z: 130.0, seed: 22}]}
+  B3_85_115: {group: au_pair, features: [{z: 85.0, seed: 11}, {z: 115.0, seed: 22}]}
+  # --- C: three clusters at 35 / 100 / 165 A, stacked or laterally separated
+  C_stacked:   {group: au_three, features: [{z: 35.0, seed: 11}, {z: 100.0, seed: 22}, {z: 165.0, seed: 33}]}
+  C_separated: {group: au_three, features: [{z: 35.0, seed: 11, offset_A: [-5.0, -5.0]}, {z: 100.0, seed: 22},
+                                            {z: 165.0, seed: 33, offset_A: [5.0, 5.0]}]}
+  # --- D: Au in amorphous carbon (two independent carbon arrangements each) and carbon-only negative controls
+  D_c025_z100_e1: {group: au_carbon, features: [{z: 100.0, seed: 11}], carbon: {density: 0.025, seed: 1}}
+  D_c025_z100_e2: {group: au_carbon, features: [{z: 100.0, seed: 11}], carbon: {density: 0.025, seed: 2}}
+  D_c05_z100_e1:  {group: au_carbon, features: [{z: 100.0, seed: 11}], carbon: {density: 0.05, seed: 1}}
+  D_c05_z100_e2:  {group: au_carbon, features: [{z: 100.0, seed: 11}], carbon: {density: 0.05, seed: 2}}
+  D_c1_z100_e1:   {group: au_carbon, features: [{z: 100.0, seed: 11}], carbon: {density: 0.1, seed: 1}}
+  D_c1_z100_e2:   {group: au_carbon, features: [{z: 100.0, seed: 11}], carbon: {density: 0.1, seed: 2}}
+  D_c025_B1_e1:   {group: au_carbon, features: [{z: 50.0, seed: 11}, {z: 150.0, seed: 22}], carbon: {density: 0.025, seed: 1}}
+  D_c05_B1_e1:    {group: au_carbon, features: [{z: 50.0, seed: 11}, {z: 150.0, seed: 22}], carbon: {density: 0.05, seed: 1}}
+  D_c1_B1_e1:     {group: au_carbon, features: [{z: 50.0, seed: 11}, {z: 150.0, seed: 22}], carbon: {density: 0.1, seed: 1}}
+  D_c025_only_e3: {group: au_carbon, features: [], carbon: {density: 0.025, seed: 3}}
+  D_c05_only_e3:  {group: au_carbon, features: [], carbon: {density: 0.05, seed: 3}}
+  D_c1_only_e3:   {group: au_carbon, features: [], carbon: {density: 0.1, seed: 3}}
+  # --- E: crystalline / multilayer specimens are added after A-D are validated (section 3)

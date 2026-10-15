@@ -3,8 +3,8 @@ import sys, os, json, numpy as np
 from types import SimpleNamespace
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import bench, run_realization as rr, forward_check as fc, quantem_export as qe
-cfg = bench.load_config(); setup = bench.make_setup(cfg)
-sd = os.path.join(bench.HERE, "data/au_single/A_z100"); truth = json.load(open(sd + "/ground_truth/truth.json"))
+cfg = bench.load_config(os.path.join(bench.HERE, "configs", "benchmark_200A.yaml")); setup = bench.make_setup(cfg)
+sd = os.path.join(bench.HERE, "data/benchmark_200A/au_single/A_z100"); truth = json.load(open(sd + "/ground_truth/truth.json"))
 true = np.array(truth["aberrations"]["true"]); T = 200.0; d = 1; K = 48
 ddir = f"{sd}/window_noiseless/def{d}"
 d0 = rr.load_dataset(ddir, SimpleNamespace(energy=None, alpha=None, defocus=None), d)

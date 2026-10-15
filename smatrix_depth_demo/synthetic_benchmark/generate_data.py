@@ -5,7 +5,7 @@ Poisson) + complete ground truth, in the realization layout read by run_realizat
     python generate_data.py --specimens all                    # every specimen in the config
     python generate_data.py --specimens A_z100 --overwrite
 
-Layout (data/<group>/<specimen>/):
+Layout (data/<config name>/<group>/<specimen>/):
     ground_truth/   atoms.extxyz (feature id per atom, -1 = carbon), potential.zarr (V*A per slice), probe_d<i>.zarr
                     (true entrance probe, real + Fourier), truth.json (features, aberrations nominal/true, reference,
                     slicing, sigma, checks, versions, seeds, config hash)
@@ -23,10 +23,10 @@ import bench
 import check_geometry
 
 
-def generate(cfg, name, overwrite=False, log=print):
+def generate(cfg, name, overwrite=False, workers=None, log=print):
     setup = bench.make_setup(cfg)
     spec = cfg["specimens"][name]
-    root = os.path.join(bench.HERE, "data", spec["group"], name)
+    root = bench.specimen_dir(cfg, name)
     if os.path.exists(os.path.join(root, "ground_truth", "truth.json")) and not overwrite:
         log(f"{name}: exists ({root}), skipped (--overwrite to regenerate)")
         return root
@@ -43,7 +43,7 @@ def generate(cfg, name, overwrite=False, log=print):
     V, bounds, sigma, potential, pchecks = bench.build_potential(cfg, setup, atoms)
     log(f"{name}: {len(atoms)} atoms ({sum(f['n_atoms'] for f in feats)} Au in {len(feats)} features), potential "
         f"{V.shape} verified ({time.time() - t0:.0f} s)")
-    sim = bench.simulate(setup, potential, true, pos, log=log)
+    sim = bench.simulate(setup, atoms, float(cfg["specimen"]["potential_slice_A"]), true, pos, workers=workers, log=log)
 
     gt = os.path.join(root, "ground_truth")
     os.makedirs(gt)
@@ -75,15 +75,17 @@ def generate(cfg, name, overwrite=False, log=print):
                                          else f"abTEM PixelatedDetector(max_angle=None) / Y^2, {sim['bin']}x{sim['bin']} "
                                               "pixel sum"),
                             dataset_index=d, reference_dataset=ref, specimen=name, config=cfg["_path"],
+                            specimen_sha256=bench.specimen_sha256(cfg, name),
                             config_sha256=cfg["_sha256"], generated=bench.now())
                 bench.write_dataset(os.path.join(ddir, "4dstem_quantem"), data, step, dk, sim["zero_pixel"][variant],
                                     positions_A, [setup.Y * setup.dr] * 2 + [T], setup.energy_ev, 1e3 * setup.alpha,
-                                    -nominal[d, 0], meta)
+                                    -nominal[d, 0], meta, taper_mrad=1e3 * setup.taper)
                 bench.link(os.path.join(gt, f"probe_d{d}.zarr"), os.path.join(ddir, "probe.zarr"))
                 bench.link(os.path.join(gt, "potential.zarr"), os.path.join(ddir, "potential.zarr"))
                 bench.link(os.path.join(gt, "atoms.extxyz"), os.path.join(ddir, "atoms.extxyz"))
     truth = dict(
-        specimen=name, group=spec["group"], config=cfg["_path"], config_sha256=cfg["_sha256"], generated=bench.now(),
+        specimen=name, group=spec["group"], config=cfg["_path"], config_sha256=cfg["_sha256"],
+        specimen_sha256=bench.specimen_sha256(cfg, name), generated=bench.now(),
         versions=bench.versions(), thickness_A=T, cell_A=[setup.Y * setup.dr] * 2 + [T],
         axis_order="axis 0 = ase x, axis 1 = ase y; z = depth below the entrance",
         features=feats, n_features=len(feats), n_au=int(sum(f["n_atoms"] for f in feats)),
@@ -113,11 +115,12 @@ def main():
     ap.add_argument("--config", default=bench.DEFAULT_CONFIG)
     ap.add_argument("--specimens", default="A_z100", help="comma list or 'all'")
     ap.add_argument("--overwrite", action="store_true")
+    ap.add_argument("--workers", type=int, default=None, help="parallel processes (default: one per defocus)")
     a = ap.parse_args()
     cfg = bench.load_config(a.config)
     names = list(cfg["specimens"]) if a.specimens == "all" else a.specimens.split(",")
     for n in names:
-        generate(cfg, n, a.overwrite)
+        generate(cfg, n, a.overwrite, a.workers)
 
 
 if __name__ == "__main__":

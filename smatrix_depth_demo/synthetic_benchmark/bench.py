@@ -30,7 +30,7 @@ import simple_joint as sj                    # noqa: E402
 import abtem_data as ad                      # noqa: E402
 import calibrate_m3 as m3                    # noqa: E402
 
-DEFAULT_CONFIG = os.path.join(HERE, "configs", "benchmark_200A.yaml")
+DEFAULT_CONFIG = os.path.join(HERE, "configs", "benchmark_200A_K96.yaml")
 
 
 # ------------------------------------------------------------------------------------------------ configuration
@@ -42,10 +42,23 @@ def load_config(path=DEFAULT_CONFIG):
     return cfg
 
 
+def specimen_sha256(cfg, name):
+    """Hash of everything that defines one specimen's data: all config sections except the specimen list, plus this
+    specimen's entry.  Adding other specimens to the config does not change it."""
+    d = {k: v for k, v in cfg.items() if not k.startswith("_") and k != "specimens"}
+    d["specimen"] = {"name": name, **cfg["specimens"][name]}
+    return hashlib.sha256(json.dumps(d, sort_keys=True).encode()).hexdigest()
+
+
+def specimen_dir(cfg, name):
+    """data/<config name>/<group>/<specimen>: one directory per configuration version."""
+    return os.path.join(HERE, "data", cfg["name"], cfg["specimens"][name]["group"], name)
+
+
 def make_setup(cfg):
     m, s = cfg["microscope"], cfg["sampling"]
     return sj.Setup(energy_ev=float(m["energy_ev"]), alpha=1e-3 * float(m["alpha_mrad"]), dr=float(s["dr_A"]),
-                    K=int(s["K"]), Y=int(s["Y"]))
+                    K=int(s["K"]), Y=int(s["Y"]), taper=1e-3 * float(m.get("aperture_taper_mrad", 0.0)))
 
 
 def scan_positions(cfg):
@@ -169,45 +182,63 @@ def build_potential(cfg, setup, atoms):
 
 
 # ------------------------------------------------------------------------------------------------ multislice
-def simulate(setup, potential, coeffs, positions, batch=64, log=print):
-    """Noiseless patterns for both detector variants, intensity fraction per pixel, centred (zero frequency at the
-    returned pixel).  window: (D, Ny, Nx, K, K), zero at K/2; pixelated: (D, Ny, Nx, K, K), zero at zero_pix."""
+def _simulate_one(setup, atoms, slice_thickness, c, positions, batch):
+    """One defocus dataset (runs in its own process): window and pixelated patterns, and the detector check."""
     import abtem
     from abtem.core.axes import OrdinalAxis
+    potential = abtem.Potential(atoms, gpts=(setup.Y, setup.Y), slice_thickness=slice_thickness)
+    Y, K = setup.Y, setup.K
+    b = Y // K
+    L = Y * setup.dr
+    pos = np.asarray(positions).reshape(-1, 2)
+    win = np.zeros((len(pos), K, K), np.float32)
+    pix = np.zeros((len(pos), K, K), np.float32)
+    h = K // 2
+    det = abtem.PixelatedDetector(max_angle=None)
+    check = None
+    p0 = ad.entrance_probe(setup, c)                                 # (Y, Y), axis 0 first, unit norm, corner-centred
+    for b0 in range(0, len(pos), batch):
+        chunk = pos[b0:b0 + batch]
+        arr = np.stack([np.roll(p0, (int(r0), int(r1)), axis=(0, 1)) for r0, r1 in chunk])
+        waves = abtem.Waves(arr, energy=setup.energy_ev, extent=L,
+                            ensemble_axes_metadata=[OrdinalAxis(values=tuple(range(len(arr))))])
+        ex = waves.multislice(potential).compute(progress_bar=False)
+        exa = np.asarray(ex.array)
+        for n, (r0, r1) in enumerate(chunk):
+            w = exa[n, r0 - h:r0 + h, r1 - h:r1 + h]
+            win[b0 + n] = np.fft.fftshift(np.abs(np.fft.fft2(w, norm="ortho")) ** 2)
+        full = np.asarray(det.detect(ex).compute(progress_bar=False).array, np.float64) / Y ** 2
+        if check is None:                                            # abTEM detector == fftshift |FFT_ortho|^2
+            ref = np.fft.fftshift(np.abs(np.fft.fft2(exa[0], norm="ortho")) ** 2)
+            check = float(np.abs(full[0] - ref).max() / ref.max())
+        pix[b0:b0 + len(chunk)] = full.reshape(len(chunk), K, b, K, b).sum(axis=(2, 4))
+    return win, pix, check
+
+
+def simulate(setup, atoms, slice_thickness, coeffs, positions, batch=64, workers=None, log=print):
+    """Noiseless patterns for both detector variants, intensity fraction per pixel, centred (zero frequency at the
+    returned pixel).  window: (D, Ny, Nx, K, K), zero at K/2; pixelated: (D, Ny, Nx, K, K), zero at zero_pix.
+    The defocus datasets run in parallel processes (workers, default one per dataset)."""
+    from concurrent.futures import ProcessPoolExecutor
+    import multiprocessing as mp
     Y, K = setup.Y, setup.K
     b = Y // K
     if b * K != Y:
         raise ValueError("pixelated variant needs Y to be a multiple of K")
-    L = Y * setup.dr
-    pos = np.asarray(positions).reshape(-1, 2)
     D = len(coeffs)
-    win = np.zeros((D, len(pos), K, K), np.float32)
-    pix = np.zeros((D, len(pos), K, K), np.float32)
-    h = K // 2
-    det = abtem.PixelatedDetector(max_angle=None)
-    check = None
-    for d, c in enumerate(np.asarray(coeffs, float)):
-        p0 = ad.entrance_probe(setup, c)                            # (Y, Y), axis 0 first, unit norm, corner-centred
-        for b0 in range(0, len(pos), batch):
-            chunk = pos[b0:b0 + batch]
-            arr = np.stack([np.roll(p0, (int(r0), int(r1)), axis=(0, 1)) for r0, r1 in chunk])
-            waves = abtem.Waves(arr, energy=setup.energy_ev, extent=L,
-                                ensemble_axes_metadata=[OrdinalAxis(values=tuple(range(len(arr))))])
-            ex = waves.multislice(potential).compute(progress_bar=False)
-            exa = np.asarray(ex.array)
-            for n, (r0, r1) in enumerate(chunk):
-                w = exa[n, r0 - h:r0 + h, r1 - h:r1 + h]
-                win[d, b0 + n] = np.fft.fftshift(np.abs(np.fft.fft2(w, norm="ortho")) ** 2)
-            full = np.asarray(det.detect(ex).compute(progress_bar=False).array, np.float64) / Y ** 2   # fftshifted
-            if check is None:                                        # abTEM detector == fftshift |FFT_ortho|^2
-                ref = np.fft.fftshift(np.abs(np.fft.fft2(exa[0], norm="ortho")) ** 2)
-                check = float(np.abs(full[0] - ref).max() / ref.max())
-            pix[d, b0:b0 + len(chunk)] = full.reshape(len(chunk), K, b, K, b).sum(axis=(2, 4))
-        log(f"  abTEM multislice: dataset {d + 1}/{D} done")
     shape = np.asarray(positions).shape[:2]
+    with ProcessPoolExecutor(max_workers=workers or D, mp_context=mp.get_context("spawn")) as ex:
+        futs = [ex.submit(_simulate_one, setup, atoms, slice_thickness, np.asarray(c, float), positions, batch)
+                for c in coeffs]
+        out = []
+        for d, f in enumerate(futs):
+            out.append(f.result())
+            log(f"  abTEM multislice: dataset {d + 1}/{D} done")
+    win = np.array([o[0] for o in out]).reshape(D, *shape, K, K)
+    pix = np.array([o[1] for o in out]).reshape(D, *shape, K, K)
     zero_pix = (Y / 2 - (b - 1) / 2) / b                             # native zero (Y/2) in binned pixel units
-    return dict(window=win.reshape(D, *shape, K, K), pixelated=pix.reshape(D, *shape, K, K),
-                zero_pixel=dict(window=K / 2, pixelated=zero_pix), pixelated_vs_fft_check=check, bin=b)
+    return dict(window=win, pixelated=pix, zero_pixel=dict(window=K / 2, pixelated=zero_pix),
+                pixelated_vs_fft_check=out[0][2], bin=b)
 
 
 def poisson(intensity, dose, seed):
@@ -226,7 +257,7 @@ def write_group(path, attrs):
     g.attrs.update(attrs)
 
 
-def write_dataset(path, data, step, dk, zero, positions_A, cell, energy, alpha_mrad, nominal_focus, bench_meta):
+def write_dataset(path, data, step, dk, zero, positions_A, cell, energy, alpha_mrad, nominal_focus, bench_meta, taper_mrad=0.0):
     """One Dataset4dstem directory in the realization layout read by run_realization.load_dataset."""
     write_group(path, {"_name": bench_meta["label"], "_signal_units": bench_meta["signal_units"]})
     write_array(os.path.join(path, "_array"), data.astype(np.float32))
@@ -235,7 +266,8 @@ def write_dataset(path, data, step, dk, zero, positions_A, cell, energy, alpha_m
     write_group(os.path.join(path, "_metadata"), {})
     write_group(sim, {})
     write_group(os.path.join(sim, "probe"), {"energy_eV": energy, "semiangle_cutoff_mrad": alpha_mrad,
-                                             "defocus_A": float(nominal_focus), "defocus_meaning": "nominal, = -C10"})
+                                             "defocus_A": float(nominal_focus), "defocus_meaning": "nominal, = -C10",
+                                             "aperture_taper_mrad": float(taper_mrad)})
     write_group(os.path.join(sim, "detector"), {"variant": bench_meta["variant"], "integration": bench_meta["integration"]})
     write_array(os.path.join(sim, "detector", "zero_frequency_pixel"), np.array([zero, zero], float))
     write_array(os.path.join(sim, "padded_scan_positions_A"), positions_A)

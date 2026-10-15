@@ -67,11 +67,11 @@ def window_patterns(setup, exit_waves, pos):
     return np.array(out)
 
 
-def run(cfg, name, device="cpu", log=print):
+def run(cfg, name, device="cpu", log=print, stride=3, batch=4):
     import zarr
     setup = bench.make_setup(cfg)
     spec = cfg["specimens"][name]
-    sd = os.path.join(bench.HERE, "data", spec["group"], name)
+    sd = bench.specimen_dir(cfg, name)
     gt = os.path.join(sd, "ground_truth")
     truth = json.load(open(os.path.join(gt, "truth.json")))
     V = zarr.open_array(os.path.join(gt, "potential.zarr", "array0"), mode="r")[...]
@@ -92,26 +92,32 @@ def run(cfg, name, device="cpu", log=print):
     t0 = time.time()
     f1 = {}
     pred1 = {}
-    for aa in (True, False):
+    sub = np.zeros(pos.shape[:2], bool)
+    sub[::stride, ::stride] = True
+    subflat = flat[sub.ravel()]
+    msub = meas["window"][:, sub]
+    for aa in (True, False, "vacuum"):
         P = []
         for d in range(len(true)):
             p0 = bench.ad.entrance_probe(setup, true[d]).astype(np.complex128)
             Pd = []
-            for b0 in range(0, len(flat), 125):
-                ch = flat[b0:b0 + 125]
+            for b0 in range(0, len(subflat), 32):
+                ch = subflat[b0:b0 + 32]
                 w0 = np.stack([np.roll(p0, (int(r0), int(r1)), axis=(0, 1)) for r0, r1 in ch])
-                ex = multislice_torch(setup, phase, w0, dz, aa, device).cpu().numpy()
+                ex = multislice_torch(setup, phase * (aa != "vacuum"), w0, dz, aa is not False, device).cpu().numpy()
                 Pd.append(window_patterns(setup, ex, ch))
-            P.append(np.concatenate(Pd).reshape(*pos.shape[:2], K, K))
+            P.append(np.concatenate(Pd))
         P = np.array(P)
-        key = "antialias_2/3" if aa else "no_antialias"
+        key = {True: "antialias_2/3", False: "no_antialias", "vacuum": "vacuum (Au signal reference)"}[aa]
         pred1[key] = P
-        f1[key] = dict(all=ldata(P, meas["window"], bf), per_dataset=[ldata(P[d], meas["window"][d], bf) for d in range(len(P))],
-                       max_abs_rel=float(np.abs(P - meas["window"]).max() / meas["window"].max()))
+        f1[key] = dict(all=ldata(P, msub, bf), per_dataset=[ldata(P[d], msub[d], bf) for d in range(len(P))],
+                       max_abs_rel=float(np.abs(P - msub).max() / msub.max()))
+    f1["positions_used"] = int(len(subflat))
     res["F1_torch_multislice_vs_abtem_window"] = f1
-    log(f"F1 torch multislice vs abTEM (window): " + ", ".join(f"{k} L_data {v['all']['L_data']:.2e}" for k, v in f1.items())
-        + f" ({time.time() - t0:.0f} s)")
-    best = min(f1, key=lambda k: f1[k]["all"]["L_data"])
+    log(f"F1 torch multislice vs abTEM (window, {len(subflat)} positions): " + ", ".join(
+        f"{k} L_data {v['all']['L_data']:.2e}" for k, v in f1.items() if isinstance(v, dict)) + f" ({time.time() - t0:.0f} s)")
+    best = min(("antialias_2/3", "no_antialias"), key=lambda k: f1[k]["all"]["L_data"])
+    res["au_signal_L"] = f1["vacuum (Au signal reference)"]["all"]["L_data"]
 
     # ---------------------------------------------------------------------------------------- F2 S-matrix model
     t0 = time.time()
@@ -121,9 +127,11 @@ def run(cfg, name, device="cpu", log=print):
     for ref_plane in ("exit", "entrance"):
         S0 = (np.exp(2j * np.pi * ky[:, None, None] * r[None, :, None]) * np.exp(2j * np.pi * kx[:, None, None] * r[None, None, :]))
         S = []
-        for b0 in range(0, len(S0), 100):
-            S.append(multislice_torch(setup, phase, S0[b0:b0 + 100], dz, best == "antialias_2/3", device).cpu().numpy())
+        for b0 in range(0, len(S0), 32):
+            S.append(multislice_torch(setup, phase, S0[b0:b0 + 32], dz, best == "antialias_2/3", device).cpu().numpy()
+                     .astype(np.complex64))
         S = np.concatenate(S)
+        del S0
         if ref_plane == "entrance":
             q = np.fft.fftfreq(setup.Y, setup.dr)
             S = np.fft.ifft2(np.fft.fft2(S) * np.exp(1j * np.pi * setup.lam * truth["thickness_A"] * (q[:, None] ** 2 + q[None, :] ** 2)))
@@ -133,7 +141,7 @@ def run(cfg, name, device="cpu", log=print):
             pred = []
             for d in range(len(true)):
                 m.didx[:] = d
-                Z = torch.cat([m(idx) for idx in torch.arange(len(flat)).split(125)])
+                Z = torch.cat([m(idx) for idx in torch.arange(len(flat)).split(batch)])
                 pred.append(np.fft.fftshift((Z.abs() ** 2).cpu().numpy(), axes=(-2, -1)).reshape(*pos.shape[:2], K, K))
         pred = np.array(pred)
         out = {}
@@ -192,10 +200,15 @@ def run(cfg, name, device="cpu", log=print):
                 Q = pt0.dset.targets.shape[-1]
                 kq = (np.arange(Q) - Q // 2) * float(d0["dk"][0])
                 bfq = (np.hypot(kq[:, None], kq[None, :]) <= setup.alpha / setup.lam).astype(np.float32)
+                full = variant == "window" and d == 1
                 cfgs = [("truth potential (100 x 2 A) + true probe", truth_obj(edges), qe.SliceGrid(boundaries=edges, thickness=T), tp),
                         ("truth potential (100 x 2 A) + nominal probe", truth_obj(edges), qe.SliceGrid(boundaries=edges, thickness=T), npb),
                         ("truth projected (1 slab) + true probe", truth_obj(np.array([0.0, T])), qe.SliceGrid(boundaries=np.array([0.0, T]), thickness=T), tp),
                         ("vacuum + true probe", np.zeros((2,) + shape, np.float32), g1, tp)]
+                if not full:
+                    cfgs = [cfgs[0], cfgs[3]]
+                if variant == "pixelated" and d != 1:
+                    continue
                 f3[variant][f"def{d}"] = {}
                 for nm, phi, g, prb in cfgs:
                     pt = fc.make_pt(pdset, d0, qe.to_quantem(phi, g), prb, device)
@@ -208,7 +221,7 @@ def run(cfg, name, device="cpu", log=print):
         res["F3_quantem_forward"] = dict(error=f"{type(e).__name__}: {e}", traceback=traceback.format_exc()[-2000:])
         log(f"F3 QuantEM forward FAILED: {e}")
     log(f"F3 ({time.time() - t0:.0f} s)")
-    return res, dict(window=meas["window"], pixelated=meas["pixelated"], F1=pred1[best], F2=pred2)
+    return res, dict(window=meas["window"], pixelated=meas["pixelated"], F1=pred1[best], F2=pred2, stride=stride)
 
 
 def report(res, arrays, out, setup):
@@ -221,7 +234,10 @@ def report(res, arrays, out, setup):
          "global amplitude scale.", "",
          "## F1: independent torch multislice vs abTEM (window variant)", "",
          "| propagator | L_data | bright field | dark field | max abs diff / max |", "|---|---|---|---|---|"]
+    L.insert(2, f"**Au signal** (vacuum vs measured): L = {res['au_signal_L']:.2e}. A usable forward model must be well below it.")
     for k, v in res["F1_torch_multislice_vs_abtem_window"].items():
+        if not isinstance(v, dict):
+            continue
         a = v["all"]
         L.append(f"| {k} | {a['L_data']:.2e} | {a['L_bright_field']:.2e} | {a['L_dark_field']:.2e} | {v['max_abs_rel']:.2e} |")
     f2 = res["F2_smatrix_model"]
@@ -247,10 +263,13 @@ def report(res, arrays, out, setup):
     open(os.path.join(out, "FORWARD_VALIDATION.md"), "w").write("\n".join(L) + "\n")
     # figure: measured vs predicted, residuals (dataset 1, centre position)
     c = tuple(s // 2 for s in arrays["window"].shape[1:3])
+    stride = arrays["stride"]
+    ci = (c[0] // stride) * ((arrays["window"].shape[2] - 1) // stride + 1) + c[1] // stride
+    c = ((c[0] // stride) * stride, (c[1] // stride) * stride)
     fig, ax = plt.subplots(3, 4, figsize=(13, 9.5))
     for d in range(3):
         m = arrays["window"][d][c]
-        f1 = arrays["F1"][d][c]
+        f1 = arrays["F1"][d][ci]
         p = arrays["pixelated"][d][c]
         f2 = arrays["F2"][d][c] * res["F2_smatrix_model"]["exit"]["window"]["amplitude_scale"] ** 2
         for j, (img, t) in enumerate([(np.log10(m + 1e-9), f"measured (window) def{d}"),
@@ -277,10 +296,12 @@ def main():
     ap.add_argument("--config", default=bench.DEFAULT_CONFIG)
     ap.add_argument("--specimen", default="A_z100")
     ap.add_argument("--device", default="cpu")
+    ap.add_argument("--stride", type=int, default=3, help="F1 uses every stride-th scan position per axis")
+    ap.add_argument("--batch", type=int, default=4, help="patterns per S-matrix forward batch (memory)")
     a = ap.parse_args()
     cfg = bench.load_config(a.config)
-    res, arrays = run(cfg, a.specimen, a.device)
-    out = os.path.join(bench.HERE, "results", "forward_validation", a.specimen)
+    res, arrays = run(cfg, a.specimen, a.device, stride=a.stride, batch=a.batch)
+    out = os.path.join(bench.HERE, "results", "forward_validation", cfg["name"], a.specimen)
     os.makedirs(out, exist_ok=True)
     json.dump(res, open(os.path.join(out, "forward_validation.json"), "w"), indent=1, default=float)
     print(report(res, arrays, out, bench.make_setup(cfg)))

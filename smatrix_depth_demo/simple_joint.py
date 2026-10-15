@@ -46,6 +46,8 @@ class Setup:
     dr: float = 0.2          # real-space pixel [A]
     K: int = 64              # detector / window size [px]; the pattern is the FFT of a K x K window
     Y: int = 128             # S-matrix grid size [px] (square, multiple of K)
+    taper: float = 0.0       # soft aperture edge [rad]: amplitude falls linearly from 1 at alpha - taper/2 to 0 at
+                             # alpha + taper/2 (0 = hard aperture, |k| lam <= alpha)
 
     @property
     def lam(self):
@@ -53,12 +55,20 @@ class Setup:
         hc, m0c2 = 1.23984193e4, 5.109989461e5
         return hc / math.sqrt(self.energy_ev * (self.energy_ev + 2 * m0c2))
 
+    def aperture(self, k):
+        """Aperture amplitude at spatial frequency |k| [1/A] (array)."""
+        a = np.asarray(k) * self.lam
+        if self.taper <= 0:
+            return (a <= self.alpha).astype(float)
+        return np.clip((self.alpha - a) / self.taper + 0.5, 0.0, 1.0)
+
     def beams(self):
-        """Wave vectors (ky, kx) [1/A] of the S-matrix beams: window reciprocal grid points inside the aperture."""
+        """Wave vectors (ky, kx) [1/A] of the S-matrix beams: window reciprocal grid points where the aperture
+        amplitude is non-zero."""
         n = np.fft.fftfreq(self.K, 1.0 / self.K)
         ny, nx = np.meshgrid(n, n, indexing="ij")
         k = 1.0 / (self.K * self.dr)
-        inside = np.hypot(ny, nx) * k <= self.alpha / self.lam
+        inside = self.aperture(np.hypot(ny, nx) * k) > 0
         return ny[inside] * k, nx[inside] * k
 
 
@@ -103,6 +113,8 @@ class JointModel(torch.nn.Module):
         self.register_buffer("kx", kx)
         self.register_buffer("basis", aberration_basis(ky, kx, setup.lam, self.names))              # (P, B)
         self.register_buffer("scale", aberration_scale(setup, self.names).to(dev))                 # (P,)
+        amp = setup.aperture(torch.sqrt(ky ** 2 + kx ** 2).cpu().numpy())
+        self.register_buffer("amp", torch.as_tensor(amp, dtype=torch.float64, device=dev))         # (B,) aperture
         nominal = torch.as_tensor(np.asarray(nominal, float), dtype=torch.float64, device=dev)
         self.register_buffer("nominal", nominal)                                                    # (D, P)
         mask = torch.zeros_like(nominal)
@@ -124,8 +136,8 @@ class JointModel(torch.nn.Module):
         return self.nominal + self.mask * self.dC * self.scale
 
     def probe(self):
-        """(D, B) complex probe value at each beam, Psi_d(k_b) = norm * exp(-i chi_d(k_b))."""
-        return self.norm * torch.exp(-1j * (self.coefficients() @ self.basis))
+        """(D, B) complex probe value at each beam, Psi_d(k_b) = norm * A(k_b) * exp(-i chi_d(k_b))."""
+        return self.norm * self.amp * torch.exp(-1j * (self.coefficients() @ self.basis))
 
     def forward(self, idx, fixed="none"):
         """Predicted complex far-field Z (n, K, K) for patterns idx.

@@ -3,7 +3,7 @@ import sys, os, json, numpy as np, abtem, torch
 from ase import Atoms
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import bench, validate_forward as vf
-truth = json.load(open(os.path.join(bench.HERE, "data/au_single/A_z100/ground_truth/truth.json")))
+truth = json.load(open(os.path.join(bench.HERE, "data/benchmark_200A/au_single/A_z100/ground_truth/truth.json")))
 true = np.array(truth["aberrations"]["true"])
 Y = 192; setup = bench.sj.Setup(energy_ev=300e3, alpha=0.02, dr=0.2, K=48, Y=Y)
 au = np.array(truth["features"][0]["positions"]) + [9.6, 9.6, 0]

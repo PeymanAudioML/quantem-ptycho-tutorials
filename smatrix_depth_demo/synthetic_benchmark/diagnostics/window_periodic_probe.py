@@ -2,8 +2,8 @@
 import sys, os, json, numpy as np, torch, zarr
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import bench, validate_forward as vf
-cfg = bench.load_config(); setup = bench.make_setup(cfg)
-sd = os.path.join(bench.HERE, "data/au_single/A_z100"); gt = sd + "/ground_truth"
+cfg = bench.load_config(os.path.join(bench.HERE, "configs", "benchmark_200A.yaml")); setup = bench.make_setup(cfg)
+sd = os.path.join(bench.HERE, "data/benchmark_200A/au_single/A_z100"); gt = sd + "/ground_truth"
 truth = json.load(open(gt + "/truth.json"))
 V = zarr.open_array(gt + "/potential.zarr/array0", mode="r")[...]
 phase = truth["potential"]["sigma_rad_per_V_A"] * V.astype(np.float64)

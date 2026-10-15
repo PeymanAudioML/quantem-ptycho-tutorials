@@ -90,6 +90,8 @@ def load_dataset(path, a, d):
     cell = lookup(attrs, arrays, "computational_cell_A")
     c12 = lookup(attrs, arrays, "C12")
     phi12 = lookup(attrs, arrays, "phi12")
+    taper = getattr(a, "taper", None)
+    taper = taper if taper is not None else lookup(attrs, arrays, "aperture_taper_mrad")
     missing = [n for n, v in (("energy", energy), ("semiangle", alpha), ("defocus", defocus)) if v is None]
     if missing:
         raise ValueError(f"{path}: {missing} not in the metadata; pass --energy / --alpha / --defocus")
@@ -97,7 +99,8 @@ def load_dataset(path, a, d):
     return dict(path=path, data=data, step=samp[:2], dk=samp[2:], energy=float(energy), alpha_mrad=float(alpha),
                 defocus=float(defocus), zero=np.asarray(zero if zero is not None else [Q / 2, Q / 2], float),
                 positions_A=None if pos is None else np.asarray(pos, float), cell=None if cell is None else np.asarray(cell, float),
-                C12=None if c12 is None else float(c12), phi12=None if phi12 is None else float(phi12))
+                C12=None if c12 is None else float(c12), phi12=None if phi12 is None else float(phi12),
+                taper_mrad=float(taper or 0.0))
 
 
 def centre_patterns(data, zero, b=1):
@@ -172,7 +175,8 @@ def smatrix_stage(dsets, a, out, log):
     dps = np.array(dps, np.float32)
     Ny, Nx = dps.shape[1:3]
     Y = (max(Ny, Nx) - 1) * step_px + K
-    setup = sj.Setup(energy_ev=d0["energy"], alpha=1e-3 * d0["alpha_mrad"], dr=dr, K=K, Y=Y)
+    setup = sj.Setup(energy_ev=d0["energy"], alpha=1e-3 * d0["alpha_mrad"], dr=dr, K=K, Y=Y,
+                     taper=1e-3 * d0.get("taper_mrad", 0.0))
     gy, gx = K // 2 + np.arange(Ny) * step_px, K // 2 + np.arange(Nx) * step_px
     positions = np.stack(np.meshgrid(gy, gx, indexing="ij"), -1)
     nominal = np.zeros((len(dsets), len(sj.NAMES)))
@@ -255,7 +259,7 @@ def smatrix_stage(dsets, a, out, log):
                 geometry=checks, crop=[c0, c1])
     json.dump(info, open(os.path.join(o, "smatrix.json"), "w"), indent=1, default=float)
     np.savez(os.path.join(o, "stage.npz"), phase=phase.astype(np.float32), curve=curve, psi=psi, probes=probes,
-             energy=setup.energy_ev, alpha=setup.alpha)                 # for --reuse-smatrix
+             energy=setup.energy_ev, alpha=setup.alpha, taper=setup.taper)  # for --reuse-smatrix
     return dict(setup=setup, coeff=coeff, nominal=nominal, zg=zg, phase=phase, curve=curve, layers=layers, feats=feats,
                 sigma_z=sigma_z, probes=probes, crop=(c0, c1), psi=psi, ky=ky, kx=kx, hist=hist, info=info)
 
@@ -265,7 +269,8 @@ def load_smatrix(out):
     o = os.path.join(out, "smatrix")
     info = json.load(open(os.path.join(o, "smatrix.json")))
     z = np.load(os.path.join(o, "stage.npz"))
-    setup = sj.Setup(energy_ev=float(z["energy"]), alpha=float(z["alpha"]), dr=info["dr"], K=info["K"], Y=info["Y"])
+    setup = sj.Setup(energy_ev=float(z["energy"]), alpha=float(z["alpha"]), dr=info["dr"], K=info["K"], Y=info["Y"],
+                     taper=float(z["taper"]) if "taper" in z.files else 0.0)
     ky, kx = setup.beams()
     return dict(setup=setup, coeff=np.array(info["coefficients"]), nominal=np.array(info["nominal"]),
                 zg=np.load(os.path.join(o, "depth_grid.npy")), phase=z["phase"], curve=z["curve"], layers=info["layers"],
@@ -842,6 +847,8 @@ def main():
     ap.add_argument("--thickness", type=float, default=None, help="specimen thickness [A] (default: cell z from metadata)")
     ap.add_argument("--energy", type=float, default=None, help="[eV], overrides metadata")
     ap.add_argument("--alpha", type=float, default=None, help="semiangle [mrad], overrides metadata")
+    ap.add_argument("--taper", type=float, default=None,
+                    help="soft aperture edge [mrad] (simple_joint.Setup.taper), overrides metadata (default 0 = hard)")
     ap.add_argument("--defocus", type=lambda s: [float(v) for v in s.split(",")], default=None,
                     help="focus depth per dataset [A] (= -C10), overrides metadata")
     ap.add_argument("--scan-roi", type=lambda s: [int(v) for v in s.split(",")], default=None, help="i0,i1,j0,j1")

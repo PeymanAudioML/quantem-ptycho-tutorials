@@ -67,7 +67,7 @@ def entrance_probe(setup, coeffs):
     qy, qx = np.meshgrid(q, q, indexing="ij")
     basis = sj.aberration_basis(torch.as_tensor(qy.ravel()), torch.as_tensor(qx.ravel()), setup.lam).numpy()
     chi = (np.asarray(coeffs, float) @ basis).reshape(setup.Y, setup.Y)
-    aperture = qy ** 2 + qx ** 2 <= (setup.alpha / setup.lam) ** 2
+    aperture = setup.aperture(np.hypot(qy, qx))          # hard (taper 0) or soft-edged, as in JointModel
     p = np.fft.ifft2(aperture * np.exp(-1j * chi))
     return (p / np.sqrt((np.abs(p) ** 2).sum())).astype(np.complex64)
 
