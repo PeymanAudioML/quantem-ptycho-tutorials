@@ -46,8 +46,12 @@ def load_variant(cfg, name, variant, noise):
     pos_px = np.round(pos_A / setup.dr).astype(int)
     if np.abs(pos_px * setup.dr - pos_A).max() > 1e-6:
         raise ValueError("scan positions are not on the S-grid")
-    offset = pos_px[0, 0] - setup.K // 2                               # cell pixel of S-grid pixel 0
-    return np.array(dps, np.float32), pos_px - offset, int(offset), np.array(nominal_focus)
+    offset = pos_px[0, 0] - setup.K // 2                               # cell pixel of S-grid pixel 0 (per axis)
+    return np.array(dps, np.float32), pos_px - offset, offset.astype(int), np.array(nominal_focus)
+
+
+def _json(o):
+    return o.item() if hasattr(o, "item") else str(o)
 
 
 def heldout_mask(shape, frac, seed):
@@ -131,10 +135,10 @@ def smatrix(cfg, a, log=print):
             near_surface = bool(z < 0.1 * T or z > 0.9 * T)
             peaks = rr.local_peaks(zg[inside], pin[inside], 4, frac=0.5, min_sep=0.5 * setup.lam / setup.alpha ** 2)
             cands.append(dict(
-                y=float(y) + offset * setup.dr, x=float(x) + offset * setup.dr,          # cell frame [A], axis 0 first
+                y=float(y) + offset[0] * setup.dr, x=float(x) + offset[1] * setup.dr,    # cell frame [A], axis 0 first
                 z=float(np.clip(z, 0, T)), amplitude=float(pin[i]), detection_strength=float(st), peak_contrast=contrast,
                 response_fwhm_A=fwhm, uncertainty_A=float(max(fwhm / 2.355, dz)) if not near_surface else T / 4,
-                peak_outside_slab=out_of_slab > pin[i], near_surface=near_surface,
+                peak_outside_slab=bool(out_of_slab > pin[i]), near_surface=near_surface,
                 reliable=bool(contrast > a.reliable_contrast and not near_surface and out_of_slab <= pin[i]),
                 z_peaks=[float(v) for v in peaks],                  # all depth hypotheses (>= half the main peak)
                 profile=prof.astype(np.float32).tolist()))
@@ -153,7 +157,7 @@ def smatrix(cfg, a, log=print):
             stage="smatrix", specimen=a.specimen, variant=a.variant, noise=a.noise, seed=seed, tag=a.tag, config=cfg["_path"],
             config_sha256=cfg["_sha256"], versions=bench.versions(), device=a.device,
             setup=dict(energy_ev=setup.energy_ev, alpha=setup.alpha, taper=setup.taper, dr=setup.dr, K=setup.K, Y=setup.Y),
-            s_grid_offset_px=offset, crop=[c0, c1], reference_dataset=ref, trainable=a.trainable, epochs=a.epochs,
+            s_grid_offset_px=offset.tolist(), crop=[c0, c1], reference_dataset=ref, trainable=a.trainable, epochs=a.epochs,
             batch=a.batch, lr_S=a.lr_S, mode=a.mode, init_noise=a.init_noise, heldout_fraction=a.heldout,
             split_seed=a.split_seed, n_train=int(len(train_idx)), n_heldout=int(len(test_idx)),
             loss_train=loss_train, loss_heldout=loss_test, loss_history=list(map(float, hist)), fit_time_s=fit_time,
@@ -161,7 +165,7 @@ def smatrix(cfg, a, log=print):
             depth=dict(dz=dz, layers=list(map(float, layers)), detection_threshold=thr, detect_k=a.detect_k,
                        reliable_contrast=a.reliable_contrast, candidates=cands,
                        method="peak of |arg(1 + feature_response(z))| inside 0..T, parabolic refinement; no templates"))
-        json.dump(summ, open(os.path.join(out, "summary.json"), "w"), indent=1)
+        json.dump(summ, open(os.path.join(out, "summary.json"), "w"), indent=1, default=_json)
         dst = os.path.join(bench.HERE, "results", "smatrix", cfg["name"], a.specimen, tag)
         os.makedirs(dst, exist_ok=True)
         shutil.copy(os.path.join(out, "summary.json"), dst)
@@ -274,7 +278,7 @@ def quantem(cfg, a, log=print):
                             time_s=dt, smatrix_run=a.smatrix_run, config=cfg["_path"], config_sha256=cfg["_sha256"],
                             note=("one defocus dataset (fewer measurements than the three-defocus S-matrix fit); "
                                   "installed QuantEM 0f60f90 has no multi-dataset reconstruction"))
-                json.dump(summ, open(os.path.join(out, "summary.json"), "w"), indent=1)
+                json.dump(summ, open(os.path.join(out, "summary.json"), "w"), indent=1, default=_json)
                 dst = os.path.join(bench.HERE, "results", "quantem", cfg["name"], a.specimen, tag)
                 os.makedirs(dst, exist_ok=True)
                 shutil.copy(os.path.join(out, "summary.json"), dst)
