@@ -107,7 +107,7 @@ def main():
         a_.axis("off")
     fig.suptitle(f"{a.specimen}: reconstructed slab containing each depth (rows = runs), truth 5 Å slab (bottom)",
                  fontsize=10)
-    fig.tight_layout()
+    fig.tight_layout(rect=(0, 0, 1, 0.98))
     fig.savefig(os.path.join(a.out, "compare_slices.png"), dpi=90)
     plt.close(fig)
 
