@@ -1,0 +1,389 @@
+{
+ "specimen": "A_z100",
+ "config_sha256": "d654b20e2fb5f92f709296032bd67a107577f483eb47a5742a4e44f728cf083d",
+ "versions": {
+  "python": "3.13.16",
+  "numpy": "2.5.3",
+  "scipy": "1.18.1",
+  "torch": "2.14.1+cu130",
+  "abtem": "1.0.10",
+  "ase": "3.29.0",
+  "zarr": "3.4.1",
+  "yaml": "6.0.1",
+  "quantem": "0f60f9089269671b47bf24ec930cc65dce1997cc",
+  "repo_commit": "9194874661981b74e7874491677f1cfbbb032714",
+  "repo_dirty": true
+ },
+ "F1_torch_multislice_vs_abtem_window": {
+  "antialias_2/3": {
+   "all": {
+    "L_data": 3.449474638713989e-05,
+    "L_bright_field": 2.2292029872223365e-06,
+    "L_dark_field": 0.0020520977175119493,
+    "dark_field_fraction": 0.01574029899496272
+   },
+   "per_dataset": [
+    {
+     "L_data": 3.443798282724835e-05,
+     "L_bright_field": 2.236455059438385e-06,
+     "L_dark_field": 0.0024658054739998326,
+     "dark_field_fraction": 0.01307108809248936
+    },
+    {
+     "L_data": 3.5487315943774846e-05,
+     "L_bright_field": 2.216865938787752e-06,
+     "L_dark_field": 0.002161271798681415,
+     "dark_field_fraction": 0.015409728301986154
+    },
+    {
+     "L_data": 3.3553355576258015e-05,
+     "L_bright_field": 2.2342908777211276e-06,
+     "L_dark_field": 0.00167087297022563,
+     "dark_field_fraction": 0.018769230897913013
+    }
+   ],
+   "max_abs_rel": 0.029674034591886056
+  },
+  "no_antialias": {
+   "all": {
+    "L_data": 0.0002833720718775716,
+    "L_bright_field": 2.691655128195371e-06,
+    "L_dark_field": 0.017834653852381987,
+    "dark_field_fraction": 0.01574029899496272
+   },
+   "per_dataset": [
+    {
+     "L_data": 0.0002933750636576307,
+     "L_bright_field": 2.415350288009637e-06,
+     "L_dark_field": 0.022262208200245912,
+     "dark_field_fraction": 0.01307108809248936
+    },
+    {
+     "L_data": 0.00030602140288602886,
+     "L_bright_field": 2.584469706149651e-06,
+     "L_dark_field": 0.019693842298141424,
+     "dark_field_fraction": 0.015409728301986154
+    },
+    {
+     "L_data": 0.0002504776074343111,
+     "L_bright_field": 3.080605913404462e-06,
+     "L_dark_field": 0.0131840682985068,
+     "dark_field_fraction": 0.018769230897913013
+    }
+   ],
+   "max_abs_rel": 0.02736338801624169
+  }
+ },
+ "F2_smatrix_model": {
+  "reference_S": "multislice of 293 plane waves (antialias_2/3)",
+  "exit": {
+   "window": {
+    "amplitude_scale": 0.9808555841445923,
+    "L_data": 0.016573848202824593,
+    "L_bright_field": 0.0033232413179458183,
+    "L_dark_field": 0.8451500551395189,
+    "dark_field_fraction": 0.01574029899496272,
+    "per_dataset": [
+     {
+      "L_data": 0.013559523969888687,
+      "L_bright_field": 0.0028684873677349452,
+      "L_dark_field": 0.82078333801884,
+      "dark_field_fraction": 0.01307108809248936
+     },
+     {
+      "L_data": 0.0161190964281559,
+      "L_bright_field": 0.0029754305530981595,
+      "L_dark_field": 0.855921383469944,
+      "dark_field_fraction": 0.015409728301986154
+     },
+     {
+      "L_data": 0.020076345652341843,
+      "L_bright_field": 0.0041364475900582676,
+      "L_dark_field": 0.8533933041033107,
+      "dark_field_fraction": 0.018769230897913013
+     }
+    ]
+   },
+   "pixelated": {
+    "amplitude_scale": 0.9800812602043152,
+    "L_data": 0.03934208303689957,
+    "L_bright_field": 0.0020976493294758273,
+    "L_dark_field": 0.9352281841736201,
+    "dark_field_fraction": 0.039913423788825314,
+    "per_dataset": [
+     {
+      "L_data": 0.03918813169002533,
+      "L_bright_field": 0.0021023076380709592,
+      "L_dark_field": 0.9302394215416699,
+      "dark_field_fraction": 0.0399572705139471
+     },
+     {
+      "L_data": 0.03956310451030731,
+      "L_bright_field": 0.0020892468949370176,
+      "L_dark_field": 0.9411235714193805,
+      "dark_field_fraction": 0.03990680445536943
+     },
+     {
+      "L_data": 0.039275020360946655,
+      "L_bright_field": 0.0021013935788447113,
+      "L_dark_field": 0.9343271790937278,
+      "dark_field_fraction": 0.03987620029485086
+     }
+    ]
+   }
+  },
+  "entrance": {
+   "window": {
+    "amplitude_scale": 0.9808644652366638,
+    "L_data": 0.016592208296060562,
+    "L_bright_field": 0.0033376899707136514,
+    "L_dark_field": 0.8454129638257534,
+    "dark_field_fraction": 0.01574029899496272,
+    "per_dataset": [
+     {
+      "L_data": 0.013550559990108013,
+      "L_bright_field": 0.002878272175850712,
+      "L_dark_field": 0.8193586282278653,
+      "dark_field_fraction": 0.01307108809248936
+     },
+     {
+      "L_data": 0.016135483980178833,
+      "L_bright_field": 0.0029905384817074786,
+      "L_dark_field": 0.8560196391259599,
+      "dark_field_fraction": 0.015409728301986154
+     },
+     {
+      "L_data": 0.020124290138483047,
+      "L_bright_field": 0.004154969155134162,
+      "L_dark_field": 0.854979440434873,
+      "dark_field_fraction": 0.018769230897913013
+     }
+    ]
+   },
+   "pixelated": {
+    "amplitude_scale": 0.9801008105278015,
+    "L_data": 0.03933919221162796,
+    "L_bright_field": 0.0021014215649706957,
+    "L_dark_field": 0.9350650451152264,
+    "dark_field_fraction": 0.039913423788825314,
+    "per_dataset": [
+     {
+      "L_data": 0.03918546438217163,
+      "L_bright_field": 0.002110951560600976,
+      "L_dark_field": 0.9299648720600996,
+      "dark_field_fraction": 0.0399572705139471
+     },
+     {
+      "L_data": 0.03955795615911484,
+      "L_bright_field": 0.0020912153331649275,
+      "L_dark_field": 0.9409471516398444,
+      "dark_field_fraction": 0.03990680445536943
+     },
+     {
+      "L_data": 0.03927416726946831,
+      "L_bright_field": 0.0021020982780798224,
+      "L_dark_field": 0.9342889678711466,
+      "dark_field_fraction": 0.03987620029485086
+     }
+    ]
+   }
+  }
+ },
+ "F3_quantem_forward": {
+  "geometry": {
+   "dr_quantem": 0.19999998157276475,
+   "first_scan_pixel": [
+    8.0,
+    8.0
+   ],
+   "object_shape": [
+    64,
+    64
+   ]
+  },
+  "window": {
+   "def0": {
+    "truth potential (100 x 2 A) + true probe": {
+     "L_data": 0.0060174496488531225,
+     "L_data_bright_field": 0.004428409120993911,
+     "L_data_dark_field": 0.12599748989351237,
+     "dark_field_fraction_of_measured_intensity": 0.013071091084686598,
+     "quantem_loss": 3.761466429901123
+    },
+    "truth potential (100 x 2 A) + nominal probe": {
+     "L_data": 0.0060174496488531225,
+     "L_data_bright_field": 0.004428409120993911,
+     "L_data_dark_field": 0.12599748989351237,
+     "dark_field_fraction_of_measured_intensity": 0.013071091084686598,
+     "quantem_loss": 3.761466429901123
+    },
+    "truth projected (1 slab) + true probe": {
+     "L_data": 0.007843825547174044,
+     "L_data_bright_field": 0.00596145829434681,
+     "L_data_dark_field": 0.14997141435933947,
+     "dark_field_fraction_of_measured_intensity": 0.013071091084686598,
+     "quantem_loss": 4.9030213447570805
+    },
+    "vacuum + true probe": {
+     "L_data": 0.00639768317053118,
+     "L_data_bright_field": 0.005178521453519611,
+     "L_data_dark_field": 0.09845013199564753,
+     "dark_field_fraction_of_measured_intensity": 0.013071091084686598,
+     "quantem_loss": 3.998883003616333
+    }
+   },
+   "def1": {
+    "truth potential (100 x 2 A) + true probe": {
+     "L_data": 0.0011518468265878132,
+     "L_data_bright_field": 0.0005627197954456462,
+     "L_data_dark_field": 0.03879368334264943,
+     "dark_field_fraction_of_measured_intensity": 0.015409683054803771,
+     "quantem_loss": 0.7200557525157929
+    },
+    "truth potential (100 x 2 A) + nominal probe": {
+     "L_data": 0.0008487077344636958,
+     "L_data_bright_field": 0.000272477475609888,
+     "L_data_dark_field": 0.03766651451092551,
+     "dark_field_fraction_of_measured_intensity": 0.015409683054803771,
+     "quantem_loss": 0.5305873647212982
+    },
+    "truth projected (1 slab) + true probe": {
+     "L_data": 0.002789421032125046,
+     "L_data_bright_field": 0.0018127865997863383,
+     "L_data_dark_field": 0.06519075672839676,
+     "dark_field_fraction_of_measured_intensity": 0.015409683054803771,
+     "quantem_loss": 1.7436191984653473
+    },
+    "vacuum + true probe": {
+     "L_data": 0.0014493492493409812,
+     "L_data_bright_field": 0.0009269857980985806,
+     "L_data_dark_field": 0.03482537614036851,
+     "dark_field_fraction_of_measured_intensity": 0.015409683054803771,
+     "quantem_loss": 0.9057199018955231
+    }
+   },
+   "def2": {
+    "truth potential (100 x 2 A) + true probe": {
+     "L_data": 0.004859126604173351,
+     "L_data_bright_field": 0.00362861899110731,
+     "L_data_dark_field": 0.06918764201919216,
+     "dark_field_fraction_of_measured_intensity": 0.01876946232921903,
+     "quantem_loss": 3.0368018226623534
+    },
+    "truth potential (100 x 2 A) + nominal probe": {
+     "L_data": 0.005162633586761076,
+     "L_data_bright_field": 0.0038306070702766237,
+     "L_data_dark_field": 0.07479835740433091,
+     "dark_field_fraction_of_measured_intensity": 0.01876946232921903,
+     "quantem_loss": 3.2264242641448972
+    },
+    "truth projected (1 slab) + true probe": {
+     "L_data": 0.006622357622527911,
+     "L_data_bright_field": 0.005091535060261625,
+     "L_data_dark_field": 0.0866507473283299,
+     "dark_field_fraction_of_measured_intensity": 0.01876946232921903,
+     "quantem_loss": 4.138764962768555
+    },
+    "vacuum + true probe": {
+     "L_data": 0.005405723879620458,
+     "L_data_bright_field": 0.004211814380257303,
+     "L_data_dark_field": 0.06782096196380624,
+     "dark_field_fraction_of_measured_intensity": 0.01876946232921903,
+     "quantem_loss": 3.377987356567383
+    }
+   }
+  },
+  "pixelated": {
+   "def0": {
+    "truth potential (100 x 2 A) + true probe": {
+     "L_data": 0.016736314147768817,
+     "L_data_bright_field": 0.0023312041436139284,
+     "L_data_dark_field": 0.2780334612732196,
+     "dark_field_fraction_of_measured_intensity": 0.05224879242603788,
+     "quantem_loss": 10.461227284240723
+    },
+    "truth potential (100 x 2 A) + nominal probe": {
+     "L_data": 0.016736314147768817,
+     "L_data_bright_field": 0.0023312041436139284,
+     "L_data_dark_field": 0.2780334612732196,
+     "dark_field_fraction_of_measured_intensity": 0.05224879242603788,
+     "quantem_loss": 10.461227284240723
+    },
+    "truth projected (1 slab) + true probe": {
+     "L_data": 0.018510458831361182,
+     "L_data_bright_field": 0.003822193502658614,
+     "L_data_dark_field": 0.2849438165429407,
+     "dark_field_fraction_of_measured_intensity": 0.05224879242603788,
+     "quantem_loss": 11.570051748657226
+    },
+    "vacuum + true probe": {
+     "L_data": 0.01712375321690029,
+     "L_data_bright_field": 0.0030451964749507875,
+     "L_data_dark_field": 0.27249748595855494,
+     "dark_field_fraction_of_measured_intensity": 0.05224879242603788,
+     "quantem_loss": 10.70329268798828
+    }
+   },
+   "def1": {
+    "truth potential (100 x 2 A) + true probe": {
+     "L_data": 0.018957261764482803,
+     "L_data_bright_field": 0.0017369519820501762,
+     "L_data_dark_field": 0.3316043909416496,
+     "dark_field_fraction_of_measured_intensity": 0.05220372716005378,
+     "quantem_loss": 11.84927440032959
+    },
+    "truth potential (100 x 2 A) + nominal probe": {
+     "L_data": 0.018680709065176087,
+     "L_data_bright_field": 0.0017458336963742846,
+     "L_data_dark_field": 0.32614557084311857,
+     "dark_field_fraction_of_measured_intensity": 0.05220372716005378,
+     "quantem_loss": 11.676434606933594
+    },
+    "truth projected (1 slab) + true probe": {
+     "L_data": 0.020640594783947558,
+     "L_data_bright_field": 0.002972787417880197,
+     "L_data_dark_field": 0.3414123649579824,
+     "dark_field_fraction_of_measured_intensity": 0.05220372716005378,
+     "quantem_loss": 12.901349769592285
+    },
+    "vacuum + true probe": {
+     "L_data": 0.019282813207301543,
+     "L_data_bright_field": 0.002110104394705644,
+     "L_data_dark_field": 0.3310657124865438,
+     "dark_field_fraction_of_measured_intensity": 0.05220372716005378,
+     "quantem_loss": 12.052642820739747
+    }
+   },
+   "def2": {
+    "truth potential (100 x 2 A) + true probe": {
+     "L_data": 0.020138603531722855,
+     "L_data_bright_field": 0.002120669368838597,
+     "L_data_dark_field": 0.3474526741530368,
+     "dark_field_fraction_of_measured_intensity": 0.05217568575534683,
+     "quantem_loss": 12.587580572509765
+    },
+    "truth potential (100 x 2 A) + nominal probe": {
+     "L_data": 0.02049271887290066,
+     "L_data_bright_field": 0.002300908186078519,
+     "L_data_dark_field": 0.35096543311679096,
+     "dark_field_fraction_of_measured_intensity": 0.05217568575534683,
+     "quantem_loss": 12.808901623535156
+    },
+    "truth projected (1 slab) + true probe": {
+     "L_data": 0.021910712083051804,
+     "L_data_bright_field": 0.0035283667381160407,
+     "L_data_dark_field": 0.355844681872546,
+     "dark_field_fraction_of_measured_intensity": 0.05217568575534683,
+     "quantem_loss": 13.695109562683106
+    },
+    "vacuum + true probe": {
+     "L_data": 0.02059639632859345,
+     "L_data_bright_field": 0.0026643281211257215,
+     "L_data_dark_field": 0.346350624676032,
+     "dark_field_fraction_of_measured_intensity": 0.05217568575534683,
+     "quantem_loss": 12.873550358581543
+    }
+   }
+  }
+ }
+}

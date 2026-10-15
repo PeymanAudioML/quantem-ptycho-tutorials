@@ -1,0 +1,101 @@
+{
+ "energy_eV": 300000.0,
+ "wavelength_A": 0.0196874882021318,
+ "alpha_mrad": 20.0,
+ "dr_A": 0.2,
+ "K": 48,
+ "Y": 96,
+ "field_of_view_A": 19.200000000000003,
+ "window_A": 9.600000000000001,
+ "scan_shape": [
+  25,
+  25
+ ],
+ "scan_step_A": 0.4,
+ "scanned_extent_A": [
+  9.600000000000001,
+  9.600000000000001
+ ],
+ "datasets": 3,
+ "reference_dataset": 0,
+ "patterns": 1875,
+ "detector_pixels": 2304,
+ "reciprocal_pixel_inv_A": 0.10416666666666666,
+ "beams": 293,
+ "s_matrix_pixels_covered": 9216,
+ "measurements": 4320000,
+ "unknown_reals": 5400576,
+ "measurements_per_unknown": 0.7999146757679181,
+ "depth_resolution_lambda_over_alpha2_A": 49.2187205053295,
+ "abtem_band_limit_mrad": 32.812480336886324,
+ "thickness_A": 200.0,
+ "potential_slices": 100,
+ "memory_MB": {
+  "patterns_per_variant": 17.28,
+  "s_matrix_complex64": 21.602304,
+  "s_matrix_with_adam_state": 64.806912,
+  "forward_window_gather_per_16_patterns": 86.409216,
+  "potential": 3.6864
+ },
+ "checks": [
+  {
+   "check": "beams in window grid",
+   "value": 1.0158736246421909,
+   "limit": 2.5,
+   "ok": true,
+   "note": "aperture radius vs Nyquist [1/A]"
+  },
+  {
+   "check": "abTEM band limit",
+   "value": 32.81248033688633,
+   "limit": 26.0,
+   "ok": true,
+   "note": "mrad; use smaller dr"
+  },
+  {
+   "check": "window size",
+   "value": 9.600000000000001,
+   "limit": 7.65237441010659,
+   "ok": true,
+   "note": "window [A] vs probe cone 2*alpha*167 A + 1.0 A"
+  },
+  {
+   "check": "scan inside S grid",
+   "value": 1.0,
+   "limit": 1.0,
+   "ok": true,
+   "note": "all windows inside Y x Y"
+  },
+  {
+   "check": "measurements/unknowns",
+   "value": 0.7999146757679181,
+   "limit": 0.7,
+   "ok": true,
+   "note": "3 datasets x 625 positions, 293 beams"
+  },
+  {
+   "check": "scan step = whole S-grid pixels",
+   "value": 2.0,
+   "limit": 2.0,
+   "ok": true,
+   "note": "0.400 A = 2 px"
+  },
+  {
+   "check": "pixelated detector = window detector",
+   "value": 0.0,
+   "limit": 0.0,
+   "ok": true,
+   "note": "window dk = 1/(K dr) = 0.10417 1/A; pixelated: 2x2 bins of 1/(Y dr) = 0.05208 1/A"
+  },
+  {
+   "check": "true aberrations inside window",
+   "value": 9.600000000000001,
+   "limit": 7.65237441010659,
+   "ok": true,
+   "note": "with the TRUE defoci"
+  }
+ ],
+ "ok": true,
+ "config": "synthetic_benchmark/configs/benchmark_200A.yaml",
+ "config_sha256": "d654b20e2fb5f92f709296032bd67a107577f483eb47a5742a4e44f728cf083d"
+}

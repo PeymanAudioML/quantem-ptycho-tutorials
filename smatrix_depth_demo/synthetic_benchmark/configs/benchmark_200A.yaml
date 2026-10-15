@@ -1,0 +1,54 @@
+# Synthetic 4D-STEM benchmark, 200 A specimens (version 1).  All lengths in Angstrom.
+# Coordinate convention (all saved files): array axis 0 = ase x, axis 1 = ase y, z = depth below the entrance (0..T).
+# simple_joint labels axis 0 "y" internally; aberration azimuths (C12a/b) are those of simple_joint:
+# phi = atan2(k_axis0, k_axis1).  QuantEM receives them converted (run_realization.quantem_aberrations).
+version: 1
+name: benchmark_200A
+
+microscope:
+  energy_ev: 300000.0
+  alpha_mrad: 20.0
+
+sampling:
+  dr_A: 0.2            # simulation and S-matrix pixel
+  K: 48                # S-matrix window = detector (window variant)
+  Y: 96                # S-matrix lateral grid = abTEM cell (periodic, 19.2 A)
+  scan_step_px: 2      # 0.4 A
+  scan_shape: [25, 25]
+  scan_start_px: 24    # first scan position (window centre) = K / 2
+
+specimen:
+  thickness_A: 200.0
+  potential_slice_A: 2.0     # abTEM slicing (simulation discretisation, not an imaging resolution)
+  z_eps_A: 0.001             # atoms are kept in [z_eps, T - z_eps] (abTEM wraps z = T into slice 0)
+
+defocus:
+  reference: 0               # gauge dataset: its nominal aberrations are exact and stay fixed in the S-matrix fit
+  nominal_C10: [-166.7, -100.0, -33.3]      # focus depth = -C10
+  perturbations:             # true - nominal: [C10, C12a, C12b]
+    - [0.0, 0.0, 0.0]
+    - [12.0, 6.0, -4.0]
+    - [-10.0, -3.0, 5.0]
+
+detector:
+  variants: [window, pixelated]   # window: |FFT|^2 of the K x K exit-wave window (S-matrix model);
+                                  # pixelated: abTEM PixelatedDetector on the full exit wave, 2 x 2 pixel integration
+noise:
+  dose_per_pattern: 1.0e5         # incident electrons per pattern; expected counts = intensity fraction x dose
+  seed: 20261015
+
+cluster:
+  n_atoms: 3
+  spread_A: 2.0                   # calibrate_m3.gold_cluster: random, >= 2.5 A apart within +-spread of the centre
+  seed: 11
+
+specimens:                        # stage 1 (section 17): one noiseless specimen; others are added after it passes
+  A_z100:
+    group: au_single
+    features: [{z: 100.0, offset_A: [0.0, 0.0], seed: 11}]
+  A_z40:
+    group: au_single
+    features: [{z: 40.0, offset_A: [0.0, 0.0], seed: 11}]
+  A_z160:
+    group: au_single
+    features: [{z: 160.0, offset_A: [0.0, 0.0], seed: 11}]
