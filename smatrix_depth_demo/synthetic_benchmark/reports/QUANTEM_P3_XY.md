@@ -8,7 +8,9 @@ against the ground truth. All S-matrix inputs come from the joint S-matrix + pro
 **Main result.** Starting QuantEM from the S-matrix's recovered object (arm E) gives a much better reconstruction
 than every other arm: 8x lower loss, projected-potential correlation 0.971 vs 0.894–0.904, and half the probe error.
 Placing slices by the S-matrix depth candidates (arm C) makes no difference. No arm recovers depth structure, which is
-expected: the three grains of P3_XY are columns through the full thickness.
+expected: the three grains of P3_XY are columns through the full thickness. An S-matrix fitted on the same single
+dataset as QuantEM (section 5) keeps a good lateral image (corr 0.934) but cannot fit the probe. It also invents two
+false depth layers, so the S-matrix's probe and depth accuracy depend on having three defocus datasets.
 
 ## 1. Data and specimen
 
@@ -168,16 +170,55 @@ Per-run figures (`slices.png`, `projected.png`, `depth.png`, `probe.png`) and `m
 8. **E is not fully converged.** Its loss still changes by 3 % over the last 10 % of iterations, against about 0.2 %
    for A–D. More iterations would likely lower it further.
 
-## 5. Limitations
+## 5. Equal-data check: S-matrix on one defocus dataset
 
-- One defocus dataset for QuantEM vs three for the S-matrix fit, so the two are not equal-data comparisons.
+Sections 3–4 compare QuantEM on one dataset with an S-matrix fitted on three. For an equal-data reference the S-matrix
+was also fitted on dataset 1 alone (`smatrix_window_noiseless_s0_full80_single_d1`). Settings match the 3-dataset run
+(80 epochs, no held-out data, early stopping 1 % / 6 epochs), with two differences. First, the probe is fixed at
+nominal, because one defocus cannot separate S from the probe (`--single-dataset`). Second, the fit is
+**underdetermined**: 0.25 measurements per unknown against the 0.7 minimum of the geometry check. That check refuses
+such a fit by default, so it ran with the new opt-in `--allow-underdetermined`; the failed check is still logged and
+saved in `summary.json`. It took 72 min.
+
+| | S-matrix, 3 datasets | S-matrix, 1 dataset |
+|---|---|---|
+| patterns | 8427 | 2809 |
+| probe | fitted, RMS 0.0035 rad | nominal, fixed (0.282 rad) |
+| final training loss | 1.1e-3 | 2.1e-5 |
+| projected estimate vs truth: corr / slope | 0.944 / 0.36 | 0.934 / 0.14 |
+| refocused sections: mean corr vs ±10 Å slab / vs projection | 0.939 / 0.948 | 0.899 / 0.908 |
+| focus curve vs true depth profile | 0.15 | 0.11 |
+| depth candidates | 12, all ≈ 100 Å, ±61–85 Å, none reliable | 50, two clusters at 54–77 Å and 176–186 Å, ±50–85 Å, none reliable |
+| focus-curve layers | 108 Å | 56 Å and 174 Å |
+
+![single-dataset S-matrix](../results/smatrix/poly_si_3grain/P3_XY/smatrix_window_noiseless_s0_full80_single_d1/monitor/progress.png)
+
+- **The lateral image survives.** The projected estimate is almost as well correlated with the truth as with three
+  datasets (0.934 vs 0.944). With equal data it still beats every flat-start QuantEM arm (0.894–0.904), but not arm E
+  (0.971), which inherited the 3-dataset S-matrix object.
+- **The strength does not.** The slope drops from 0.36 to 0.14.
+- **The fit invents depth structure.** The focus curve shows two clear peaks (56 and 174 Å), and the 50 detected
+  features fall into those two clusters. The true specimen has no depth structure. With a single focus setting, depth
+  and defocus are not separable, so the underdetermined S is free to put contrast at wrong depths. The peaks lie on
+  either side of the probe focus (100 Å); this mechanism is suggested, not verified. The 3-dataset fit instead returned
+  one central cluster with honest ±60–85 Å uncertainties.
+- **Lower loss, worse object.** The training loss is 50x lower than with three datasets, yet every object measure is
+  worse. This is the overfitting the measurement count predicts.
+
+So the S-matrix's probe accuracy and its trustworthy depth output both come from the three defocus settings, not
+from the S-matrix model alone.
+
+## 6. Limitations
+
+- One defocus dataset for QuantEM vs three for the main S-matrix fit; section 5 gives the one-dataset S-matrix for
+  reference.
 - One seed per arm, noiseless data, one specimen without depth structure.
 - E's scale is picked from 8 discrete values; its depth split uses the S-matrix focus curve, which on this specimen is
   nearly flat (so E is effectively "S-matrix projection spread uniformly in depth").
 - The useful test of S-informed *depth* priors is `P3_XYZ` (grains at z = 40 / 110 / 170 Å with tilted boundaries).
   It needs an S-matrix fit first (about 3 h), then the QuantEM arms (about 2 h).
 
-## 6. Reproduce
+## 7. Reproduce
 
 ```bash
 cd smatrix_depth_demo/synthetic_benchmark
@@ -190,3 +231,11 @@ $PY compare_quantem.py --config $CFG --specimen P3_XY --out results/quantem_comp
 ```
 
 Run names: `quantem_window_noiseless_d1_<arm>_nominal_trained_call_s0_<tag>`.
+
+Single-dataset S-matrix (section 5):
+
+```bash
+$PY run_benchmark.py smatrix --config $CFG --specimen P3_XY --single-dataset --dataset 1 --allow-underdetermined \
+    --tag full80 --heldout 0 --epochs 80 --checkpoint-every 5 --patience 6 --min-rel-improvement 0.01 --monitor-every 80 --device cuda
+$PY plot_fit_monitor.py --config $CFG --specimen P3_XY --run runs/poly_si_3grain/P3_XY/smatrix_window_noiseless_s0_full80_single_d1 --once
+```

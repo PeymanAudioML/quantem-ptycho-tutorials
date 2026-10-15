@@ -157,9 +157,12 @@ def draw(tr, rows_all, last, out, title):
         for d in ds:
             a.plot(ep, [r[f"d{d}_{nm}_err"] for r in rows_all], ".-", color=cols[d], label=f"dataset {d}")
         a.axhline(0, color="k", lw=0.8)
-        a.set_title(f"{nm} error = fit − truth (Å); nominal start = {tr.nominal[ds[0], j] - tr.true[ds[0], j]:+.0f} / "
-                    + " / ".join(f"{tr.nominal[d, j] - tr.true[d, j]:+.0f}" for d in ds[1:]), fontsize=9)
-        a.set_xlabel("epoch"), a.legend(fontsize=8)
+        a.set_title(f"{nm} error = fit − truth (Å); nominal start = "
+                    + " / ".join(f"{tr.nominal[d, j] - tr.true[d, j]:+.0f}" for d in ds) if ds else
+                    f"{nm}: no fitted probe (single dataset, nominal fixed)", fontsize=9)
+        a.set_xlabel("epoch")
+        if ds:
+            a.legend(fontsize=8)
     for d in ds:
         ax[1, 0].plot(ep, [r[f"d{d}_probe_rms_rad"] for r in rows_all], ".-", color=cols[d], label=f"dataset {d}")
     ax[1, 0].set_title("probe RMS phase error vs true probe (rad)"), ax[1, 0].set_xlabel("epoch"), ax[1, 0].legend(fontsize=8)

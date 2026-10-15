@@ -88,7 +88,9 @@ def smatrix(cfg, a, log=print):
     ref = 0 if a.single_dataset else int(cfg["defocus"]["reference"])
     if a.single_dataset:
         log(f"Single dataset {a.dataset}: the nominal probe is fixed; S and probe cannot be independently recovered.")
-    checks = sj.check_geometry(setup, pos, nominal, T, abtem=True, strict=True, log=log)
+    checks = sj.check_geometry(setup, pos, nominal, T, abtem=True, strict=not a.allow_underdetermined, log=log)
+    if a.allow_underdetermined and not all(c["ok"] for c in checks):
+        log("geometry check failed but --allow-underdetermined is set: fitting anyway (expect a degraded S)")
     hold = heldout_mask((ny, nx), a.heldout, a.split_seed)
     amp, P, didx = sj.prepare_data(dps, pos, device=a.device)
     hold_j = np.tile(hold.ravel(), D)
@@ -425,6 +427,9 @@ def main():
     ap.add_argument("--single-dataset", action="store_true",
                     help="use only --dataset; QuantEM uses no S priors, S-matrix keeps the nominal probe fixed")
     ap.add_argument("--dataset", type=int, default=1, help="defocus dataset for QuantEM or single-dataset S recovery")
+    ap.add_argument("--allow-underdetermined", action="store_true",
+                    help="S-matrix: fit even if the geometry check fails (e.g. one defocus dataset); "
+                         "the failed check is still logged and saved in summary.json")
     ap.add_argument("--epochs", type=int, default=40)
     ap.add_argument("--warmup", type=int, default=8)
     ap.add_argument("--batch", type=int, default=16)
