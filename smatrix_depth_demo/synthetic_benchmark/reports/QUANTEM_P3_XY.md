@@ -205,6 +205,26 @@ saved in `summary.json`. It took 72 min.
 - **Lower loss, worse object.** The training loss is 50x lower than with three datasets, yet every object measure is
   worse. This is the overfitting the measurement count predicts.
 
+![feature depths](../results/smatrix/poly_si_3grain/P3_XY/depth_features.png)
+
+`plot_depth_features.py` shows the depth output feature by feature. Each row is one S-matrix run; the columns are the
+per-feature response curves |arg(1 + r(z))|, the picked depths ± uncertainty, the focus curve vs the true depth
+profile, and the feature positions coloured by depth.
+
+- **3 datasets:** all 12 responses are one broad hump (about 150 Å wide) peaking near 100 Å, i.e. "somewhere in the
+  column". All 12 features lie in one grain region (upper left), the only one with features above the detection
+  threshold.
+- **1 dataset:** almost every one of the 50 responses has *two* humps, near 56 Å and near 180 Å. The picked depth is
+  whichever hump is slightly taller. The two "layers" are therefore not two groups of features but one double-humped
+  response shared by all of them. The 56 Å and 180 Å features are also mixed together across all three grains instead
+  of grouping by grain, as real layers would. Both observations mark the layers as an artefact of the single focus
+  setting.
+
+Passed to `quantem_export.slice_grid`, the candidates of either run give no targeted slice depths. The 12 candidates
+of the 3-dataset run give the 35-slab grid of section 2.3. The 50 candidates of the 1-dataset run, each ±50–85 Å,
+saturate the 5 Å cap everywhere and give 40 uniform 5 Å slabs. So the false layers would not steer QuantEM, but the
+grid carries no depth information either.
+
 So the S-matrix's probe accuracy and its trustworthy depth output both come from the three defocus settings, not
 from the S-matrix model alone.
 
