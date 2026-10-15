@@ -102,14 +102,17 @@ def eval_smatrix(cfg, specimen, tol, log=print):
         ky, kx, psi = arr["beams_ky"], arr["beams_kx"], arr["probe_beams"]
         tp = true_probes_at_beams(gt, ky, kx, s["setup"]["dr"])
         coeff = np.array(s["coefficients"])
+        datasets = s.get("datasets", list(range(len(coeff))))
+        run_ref = s.get("reference_dataset", ref)
         probe = []
         for d in range(len(coeff)):
-            ov, rms = rr.probe_match(psi[d], tp[d], ky, kx)
-            a_est, a_true = np.abs(psi[d]), np.abs(tp[d])
+            dataset = datasets[d]
+            ov, rms = rr.probe_match(psi[d], tp[dataset], ky, kx)
+            a_est, a_true = np.abs(psi[d]), np.abs(tp[dataset])
             amp_err = float(np.sqrt(((a_est / np.linalg.norm(a_est) - a_true / np.linalg.norm(a_true)) ** 2).sum()))
-            probe.append(dict(dataset=d, gauge_fixed=d == ref,
-                              error_C10=float(coeff[d, 0] - true[d, 0]), error_C12a=float(coeff[d, 1] - true[d, 1]),
-                              error_C12b=float(coeff[d, 2] - true[d, 2]), overlap=ov, rms_phase_rad=rms,
+            probe.append(dict(dataset=dataset, gauge_fixed=dataset == run_ref,
+                              error_C10=float(coeff[d, 0] - true[dataset, 0]), error_C12a=float(coeff[d, 1] - true[dataset, 1]),
+                              error_C12b=float(coeff[d, 2] - true[dataset, 2]), overlap=ov, rms_phase_rad=rms,
                               amplitude_rel_error=amp_err))
         cands = s["depth"]["candidates"]
         feats, false = match_features(cands, truth, tol)
@@ -144,8 +147,8 @@ def eval_smatrix(cfg, specimen, tol, log=print):
             + str([None if fr["e_z"] is None else round(fr["e_z"], 1) for fr in feats]))
     L = [f"# S-matrix stage vs ground truth: {specimen} ({cfg['name']})", "",
          f"True features: " + ", ".join(f"#{f['id']} z = {f['z']:g} A ({f['n_atoms']} Au)" for f in truth["features"])
-         + f". Matching tolerance {tol} A (lateral, to any true Au atom). Dataset {ref} is the gauge reference: its "
-           "probe is fixed at the (exact) nominal values, not recovered.", "",
+         + f". Matching tolerance {tol} A (lateral, to any true Au atom). Each run's gauge reference "
+           "is marked below: its probe is fixed at nominal values, not recovered or necessarily exact.", "",
          "| run | train loss | held-out loss | dataset | dC10 | dC12a | dC12b | overlap | RMS phase (rad) |",
          "|---|---|---|---|---|---|---|---|---|"]
     for r in rows:
