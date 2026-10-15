@@ -113,6 +113,8 @@ def build_specimen(cfg, setup, name):
     T = float(cfg["specimen"]["thickness_A"])
     eps = float(cfg["specimen"]["z_eps_A"])
     L = setup.Y * setup.dr
+    if spec.get("polycrystal"):
+        return build_polycrystal(spec["polycrystal"], L, T, eps)
     cl = cfg["cluster"]
     feats, au = [], []
     for i, f in enumerate(spec["features"]):
@@ -140,6 +142,26 @@ def build_specimen(cfg, setup, name):
     feature_id = np.r_[np.full(len(C), -1), np.repeat(np.arange(len(feats)), [f["n_atoms"] for f in feats])]
     atoms.new_array("feature", feature_id.astype(int))
     return atoms, feats
+
+
+def build_polycrystal(pc, L, T, eps):
+    """Polycrystalline Si (polysi.build): seeds given as lateral offsets from the cell centre plus a depth.  Per-atom
+    arrays grain, dist_gb, self_boundary; the full construction record goes to atoms.info["polycrystal"]."""
+    from ase import Atoms
+    import polysi
+    c = L / 2
+    grains = [dict(seed=[c + g["seed_offset_A"][0], c + g["seed_offset_A"][1], g.get("z", T / 2)], zone=g["zone"],
+                   inplane_deg=float(g.get("inplane_deg", 0.0))) for g in pc["grains"]]
+    P, G, DG, SB, info = polysi.build(L, T, grains, metric=pc.get("metric", (1, 1, 1)), d_min=float(pc.get("d_min_A", 2.0)),
+                                      z_eps=eps, seed=int(pc.get("seed", 0)))
+    atoms = Atoms(symbols=["Si"] * len(P), positions=P, cell=[L, L, T], pbc=[True, True, False])
+    atoms.new_array("grain", G.astype(int))
+    atoms.new_array("dist_gb", DG.astype(float))
+    atoms.new_array("self_boundary", SB.astype(int))
+    info["density_map_12A"] = dict(zip(("min", "p01", "median"), map(float, np.percentile(
+        polysi.density_map(P, L, T, 12.0)[:, :, 1:-1], [0, 1, 50]))))
+    atoms.info["polycrystal"] = info
+    return atoms, []
 
 
 def build_potential(cfg, setup, atoms):
@@ -182,11 +204,14 @@ def build_potential(cfg, setup, atoms):
 
 
 # ------------------------------------------------------------------------------------------------ multislice
-def _simulate_one(setup, atoms, slice_thickness, c, positions, batch):
-    """One defocus dataset (runs in its own process): window and pixelated patterns, and the detector check."""
+def _simulate_one(setup, atoms, slice_thickness, c, positions, batch, device="cpu"):
+    """One defocus dataset (runs in its own process): window and pixelated patterns, and the detector check.
+    device "gpu": abTEM potential and multislice on the GPU (CuPy); exit waves are moved to the CPU per batch."""
     import abtem
     from abtem.core.axes import OrdinalAxis
-    potential = abtem.Potential(atoms, gpts=(setup.Y, setup.Y), slice_thickness=slice_thickness)
+    potential = abtem.Potential(atoms, gpts=(setup.Y, setup.Y), slice_thickness=slice_thickness, device=device)
+    if device == "gpu":
+        import cupy
     Y, K = setup.Y, setup.K
     b = Y // K
     L = Y * setup.dr
@@ -200,9 +225,13 @@ def _simulate_one(setup, atoms, slice_thickness, c, positions, batch):
     for b0 in range(0, len(pos), batch):
         chunk = pos[b0:b0 + batch]
         arr = np.stack([np.roll(p0, (int(r0), int(r1)), axis=(0, 1)) for r0, r1 in chunk])
+        if device == "gpu":
+            arr = cupy.asarray(arr)
         waves = abtem.Waves(arr, energy=setup.energy_ev, extent=L,
                             ensemble_axes_metadata=[OrdinalAxis(values=tuple(range(len(arr))))])
         ex = waves.multislice(potential).compute(progress_bar=False)
+        if device == "gpu":
+            ex = ex.to_cpu()
         exa = np.asarray(ex.array)
         for n, (r0, r1) in enumerate(chunk):
             w = exa[n, r0 - h:r0 + h, r1 - h:r1 + h]
@@ -215,7 +244,7 @@ def _simulate_one(setup, atoms, slice_thickness, c, positions, batch):
     return win, pix, check
 
 
-def simulate(setup, atoms, slice_thickness, coeffs, positions, batch=64, workers=None, log=print):
+def simulate(setup, atoms, slice_thickness, coeffs, positions, batch=64, workers=None, log=print, device="cpu"):
     """Noiseless patterns for both detector variants, intensity fraction per pixel, centred (zero frequency at the
     returned pixel).  window: (D, Ny, Nx, K, K), zero at K/2; pixelated: (D, Ny, Nx, K, K), zero at zero_pix.
     The defocus datasets run in parallel processes (workers, default one per dataset)."""
@@ -228,7 +257,7 @@ def simulate(setup, atoms, slice_thickness, coeffs, positions, batch=64, workers
     D = len(coeffs)
     shape = np.asarray(positions).shape[:2]
     with ProcessPoolExecutor(max_workers=workers or D, mp_context=mp.get_context("spawn")) as ex:
-        futs = [ex.submit(_simulate_one, setup, atoms, slice_thickness, np.asarray(c, float), positions, batch)
+        futs = [ex.submit(_simulate_one, setup, atoms, slice_thickness, np.asarray(c, float), positions, batch, device)
                 for c in coeffs]
         out = []
         for d, f in enumerate(futs):

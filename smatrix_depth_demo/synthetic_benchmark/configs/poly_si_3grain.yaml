@@ -1,0 +1,87 @@
+# Polycrystalline Si benchmark, three grains (GPU plan, Phase 2-4).  Geometry = benchmark_200A_K96 (Y = 288, 53 x 53
+# scan, 0.739 measurements per unknown; the plan's Y = 192 / 49 x 49 gives 0.686 < 0.7 and fails the strict check).
+# Specimens are unrelaxed periodic-Voronoi polycrystals (polysi.py); grain seeds are lateral offsets from the cell
+# centre so that the triple junction / grain stack sits in the scanned field and periodic self-boundaries fall
+# outside the illuminated region (scan field +- 10.4 A, plus window +- 9.6 A).
+# Synthetic 4D-STEM benchmark, 200 A specimens (version 2, option A of reports/STAGE1_CHECKPOINT.md).
+# Changes from version 1 (benchmark_200A.yaml, K = 48, hard aperture): window K = 96, 2 mrad soft aperture edge in the
+# simulated probe and in both reconstruction models, grid Y = 288, 53 x 53 scan (ratio 0.739).  The soft edge adds the
+# beams between 20 and 21 mrad (1313 beams), which drops Y = 192 / 49 x 49 to ratio 0.686 < 0.7 (strict check fails),
+# so the grid and scan grow; the scan step stays 0.4 A.  Reason: with a
+# hard aperture and a 9.6 A window the periodic-window forward models miss the data by 5x the Au signal; here 0.03x.
+# All lengths in Angstrom.
+# Coordinate convention (all saved files): array axis 0 = ase x, axis 1 = ase y, z = depth below the entrance (0..T).
+# simple_joint labels axis 0 "y" internally; aberration azimuths (C12a/b) are those of simple_joint:
+# phi = atan2(k_axis0, k_axis1).  QuantEM receives them converted (run_realization.quantem_aberrations).
+version: 1
+name: poly_si_3grain
+
+microscope:
+  energy_ev: 300000.0
+  alpha_mrad: 20.0
+  aperture_taper_mrad: 2.0  # amplitude 1 -> 0 linearly between 19 and 21 mrad (Setup.aperture)
+
+sampling:
+  dr_A: 0.2            # simulation and S-matrix pixel
+  K: 96                # S-matrix window = detector (window variant)
+  Y: 288               # S-matrix lateral grid = abTEM cell (periodic, 57.6 A)
+  scan_step_px: 2      # 0.4 A
+  scan_shape: [53, 53]
+  scan_start_px: 92    # first scan position (window centre); scan centred on the cell (px 144)
+
+specimen:
+  thickness_A: 200.0
+  potential_slice_A: 2.0     # abTEM slicing (simulation discretisation, not an imaging resolution)
+  z_eps_A: 0.001             # atoms are kept in [z_eps, T - z_eps] (abTEM wraps z = T into slice 0)
+
+defocus:
+  reference: 0               # gauge dataset: its nominal aberrations are exact and stay fixed in the S-matrix fit
+  nominal_C10: [-166.7, -100.0, -33.3]      # focus depth = -C10
+  perturbations:             # true - nominal: [C10, C12a, C12b]
+    - [0.0, 0.0, 0.0]
+    - [12.0, 6.0, -4.0]
+    - [-10.0, -3.0, 5.0]
+
+detector:
+  variants: [window, pixelated]   # window: |FFT|^2 of the K x K exit-wave window (S-matrix model);
+                                  # pixelated: abTEM PixelatedDetector on the full exit wave, 2 x 2 pixel integration
+noise:
+  dose_per_pattern: 1.0e5         # incident electrons per pattern; expected counts = intensity fraction x dose
+  seed: 20261015
+
+cluster:
+  n_atoms: 3
+  spread_A: 2.0                   # calibrate_m3.gold_cluster: random, >= 2.5 A apart within +-spread of the centre
+  seed: 11
+
+simulation:
+  device: gpu          # abTEM potential + multislice on the GPU (CuPy); GPU vs CPU max rel diff 3.7e-5 (smoke test)
+  batch: 192           # probe positions per multislice batch (13 ms/pattern on a T4 vs 160 ms on the CPU)
+
+specimens:
+  # --- P3-XY: three columnar grains (boundaries parallel to the beam), triple junction at the cell centre
+  P3_XY:
+    group: poly_si_3grain_xy
+    features: []
+    polycrystal:
+      metric: [1, 1, 0]
+      d_min_A: 2.0
+      seed: 1
+      grains:
+        - {seed_offset_A: [0.0, 7.0], z: 100.0, zone: [0, 0, 1], inplane_deg: 0.0}
+        - {seed_offset_A: [-6.06, -3.5], z: 100.0, zone: [1, 1, 0], inplane_deg: 17.0}
+        - {seed_offset_A: [6.06, -3.5], z: 100.0, zone: [1, 1, 1], inplane_deg: 41.0}
+  # --- P3-XYZ: three 3-D grains at different depths, overlapping in projection.  Metric weight 0.05 on z tilts the
+  #     boundaries (metric 1 gives flat layers at z ~ 75 / 140 A): 94 % of scan-field columns cross all three grains,
+  #     the first boundary lies between 40 and 111 A depth across the field.
+  P3_XYZ:
+    group: poly_si_3grain_xyz
+    features: []
+    polycrystal:
+      metric: [1, 1, 0.05]
+      d_min_A: 2.0
+      seed: 1
+      grains:
+        - {seed_offset_A: [-6.0, -4.0], z: 40.0, zone: [0, 0, 1], inplane_deg: 0.0}
+        - {seed_offset_A: [6.0, -4.0], z: 110.0, zone: [1, 1, 0], inplane_deg: 17.0}
+        - {seed_offset_A: [0.0, 6.0], z: 170.0, zone: [1, 1, 1], inplane_deg: 41.0}

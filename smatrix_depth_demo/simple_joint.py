@@ -22,7 +22,7 @@ Gauge: S and Psi only appear as a product, so an aberration COMMON to all datase
 Dataset `ref` keeps its nominal aberrations; the others learn corrections relative to it.  Absolute depth (refocus)
 therefore depends on the reference dataset's calibration.
 """
-import math
+import math, os
 from dataclasses import dataclass
 
 import numpy as np
@@ -181,7 +181,8 @@ def prepare_data(dps, positions, device="cpu"):
 
 # ------------------------------------------------------------------------------------------------ optimisation
 def fit(model, amp, epochs=40, warmup=8, batch=16, lr_S=0.02, lr_probe=None, mode="simultaneous", probe_steps=5,
-        seed=0, log=print):
+        seed=0, log=print, checkpoint=None, checkpoint_every=5, resume=False, patience=None, min_rel_improvement=0.01,
+        on_epoch=None, best_path=None, restore_best=False):
     """Joint S + probe optimisation by gradient descent (autograd + Adam).  Returns the loss history (per epoch).
 
     The first `warmup` epochs fit S only (nominal probe).  Afterwards, per `mode`:
@@ -191,6 +192,15 @@ def fit(model, amp, epochs=40, warmup=8, batch=16, lr_S=0.02, lr_probe=None, mod
                       with S fixed.  lr_probe default 0.05.
     Learning rates are in Adam units: S per complex entry, probe in rad at the aperture edge.  Both follow a cosine
     decay to 5 % over the epochs.
+
+    checkpoint: file path; every `checkpoint_every` epochs (and at the end) S, dC, both optimiser states, the history and
+    the shuffling RNG state are saved there (written to a temporary file, then renamed).  resume=True continues from it.
+    patience: early stopping (None = off).  After the warm-up, stop when the best epoch loss of the last `patience`
+    epochs is not at least `min_rel_improvement` (relative) below the best loss before them.  The cosine schedule keeps
+    its planned length, so a stopped run ends at a higher learning rate than a completed one.
+    on_epoch(model, epoch, history): optional callback after every epoch (e.g. a monitor snapshot); runs under no_grad.
+    best: the lowest-loss epoch's S and dC are kept (GPU copy) and written to `best_path` with every checkpoint and at
+    the end; restore_best=True puts them back into the model when the fit ends (completed or early-stopped).
     """
     if mode not in ("simultaneous", "alternating"):
         raise ValueError(mode)
@@ -203,7 +213,43 @@ def fit(model, amp, epochs=40, warmup=8, batch=16, lr_S=0.02, lr_probe=None, mod
     opt_P = torch.optim.Adam([model.dC], lr=lr_probe)
     train_probe = bool(model.mask.any())
     history = []
-    for ep in range(epochs):
+    start = 0
+    if checkpoint and resume and os.path.exists(checkpoint):
+        ck = torch.load(checkpoint, map_location=model.S.device, weights_only=False)
+        with torch.no_grad():
+            model.S.copy_(ck["S"])
+            model.dC.copy_(ck["dC"])
+        opt_S.load_state_dict(ck["opt_S"])
+        opt_P.load_state_dict(ck["opt_P"])
+        gen.set_state(ck["gen"].cpu())                 # map_location moves it to the device; RNG state must be CPU
+        history, start = list(ck["history"]), int(ck["epoch"])
+        log(f"resumed from {checkpoint} after epoch {start}")
+    best = dict(loss=float("inf"), epoch=0, S=None, dC=None, written=True)
+    if best_path and resume and os.path.exists(best_path):
+        bk = torch.load(best_path, map_location=model.S.device, weights_only=False)
+        best.update(loss=float(bk["loss"]), epoch=int(bk["epoch"]), S=bk["S"], dC=bk["dC"])
+        log(f"best so far: epoch {best['epoch']}, loss {best['loss']:.6f}")
+    elif history:
+        best.update(loss=min(history), epoch=int(np.argmin(history)) + 1, S=model.S.detach().clone(),
+                    dC=model.dC.detach().clone(), written=False)
+
+    def save_best():
+        if best_path and best["S"] is not None and not best["written"]:
+            tmp = best_path + ".tmp"
+            torch.save(dict(epoch=best["epoch"], loss=best["loss"], S=best["S"], dC=best["dC"]), tmp)
+            os.replace(tmp, best_path)
+            best["written"] = True
+
+    def save(ep, reason):
+        if not checkpoint:
+            return
+        tmp = checkpoint + ".tmp"
+        torch.save(dict(epoch=ep, S=model.S.detach(), dC=model.dC.detach(), opt_S=opt_S.state_dict(),
+                        opt_P=opt_P.state_dict(), gen=gen.get_state(), history=history, epochs=epochs, warmup=warmup,
+                        reason=reason), tmp)
+        os.replace(tmp, checkpoint)
+
+    for ep in range(start, epochs):
         f = 0.05 + 0.95 * 0.5 * (1 + math.cos(math.pi * ep / max(1, epochs - 1)))   # cosine decay
         for g in opt_S.param_groups:
             g["lr"] = lr_S * f
@@ -237,7 +283,36 @@ def fit(model, amp, epochs=40, warmup=8, batch=16, lr_S=0.02, lr_probe=None, mod
             msg += "  dC [A] " + np.array2string(dC[:, model.mask.any(0).cpu().numpy()], precision=2,
                                                  suppress_small=True).replace("\n", "")
         history.append(total / a2)
+        if history[-1] < best["loss"]:
+            best.update(loss=history[-1], epoch=ep + 1, S=model.S.detach().clone(), dC=model.dC.detach().clone(),
+                        written=False)
+        else:
+            msg += f"  (best: epoch {best['epoch']})"
         log(msg)
+        if on_epoch is not None:
+            with torch.no_grad():
+                on_epoch(model, ep + 1, history)
+        stop = False
+        if patience and ep + 1 >= warmup + 2 * patience:
+            before = min(history[warmup:-patience])
+            recent = min(history[-patience:])
+            if before - recent < min_rel_improvement * before:
+                log(f"early stop after epoch {ep + 1}: best of the last {patience} epochs {recent:.6f} vs {before:.6f} "
+                    f"before (relative improvement {(before - recent) / before:.4f} < {min_rel_improvement})")
+                stop = True
+        if checkpoint and ((ep + 1) % checkpoint_every == 0 or stop or ep + 1 == epochs):
+            save(ep + 1, "early stop" if stop else ("end" if ep + 1 == epochs else "periodic"))
+            save_best()
+        if stop:
+            break
+    save_best()
+    if restore_best and best["S"] is not None and best["epoch"] != len(history):
+        with torch.no_grad():
+            model.S.copy_(best["S"])
+            model.dC.copy_(best["dC"])
+        log(f"restored the best epoch {best['epoch']} (loss {best['loss']:.6f}; last epoch {len(history)}: "
+            f"{history[-1]:.6f})")
+    model.best_epoch = best["epoch"]
     return history
 
 

@@ -43,12 +43,19 @@ def generate(cfg, name, overwrite=False, workers=None, log=print):
     V, bounds, sigma, potential, pchecks = bench.build_potential(cfg, setup, atoms)
     log(f"{name}: {len(atoms)} atoms ({sum(f['n_atoms'] for f in feats)} Au in {len(feats)} features), potential "
         f"{V.shape} verified ({time.time() - t0:.0f} s)")
-    sim = bench.simulate(setup, atoms, float(cfg["specimen"]["potential_slice_A"]), true, pos, workers=workers, log=log)
+    device = cfg.get("simulation", {}).get("device", "cpu")
+    tsim = time.time()
+    sim = bench.simulate(setup, atoms, float(cfg["specimen"]["potential_slice_A"]), true, pos, workers=workers, log=log,
+                         device=device, batch=int(cfg.get("simulation", {}).get("batch", 64)))
+    tsim = time.time() - tsim
 
     gt = os.path.join(root, "ground_truth")
     os.makedirs(gt)
     from ase.io import write as ase_write
+    poly = atoms.info.pop("polycrystal", None)
     ase_write(os.path.join(gt, "atoms.extxyz"), atoms, format="extxyz")
+    if poly is not None:
+        json.dump(poly, open(os.path.join(gt, "polycrystal.json"), "w"), indent=1)
     bench.write_potential(os.path.join(gt, "potential.zarr"), V, bounds, setup, sigma)
     for d in range(len(true)):
         bench.write_probe(os.path.join(gt, f"probe_d{d}.zarr"), bench.ad.entrance_probe(setup, true[d]), setup,
@@ -90,6 +97,11 @@ def generate(cfg, name, overwrite=False, workers=None, log=print):
         axis_order="axis 0 = ase x, axis 1 = ase y; z = depth below the entrance",
         features=feats, n_features=len(feats), n_au=int(sum(f["n_atoms"] for f in feats)),
         n_carbon=int((np.asarray(atoms.get_chemical_symbols()) == "C").sum()),
+        n_si=int((np.asarray(atoms.get_chemical_symbols()) == "Si").sum()),
+        polycrystal=None if poly is None else dict(file="polycrystal.json", n_grains=len(poly["grains"]),
+                                                   atoms_per_grain=[g["n_atoms"] for g in poly["grains"]],
+                                                   relaxed=poly["relaxed"]),
+        simulation=dict(device=device, multislice_s=tsim),
         carbon=spec.get("carbon"), potential=dict(slice_boundaries_A=bounds.tolist(), units="V A per slice",
                                                   sigma_rad_per_V_A=sigma, checks=pchecks,
                                                   abtem="Potential(atoms, gpts=(Y, Y), slice_thickness), defaults"),

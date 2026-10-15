@@ -76,14 +76,29 @@ def slice_grid(candidates, thickness, dz_max=20.0, dz_min=4.0, extra_slices=4.0)
     capped at 1/dz_min.  Every candidate adds about `extra_slices` slabs around its depth support; the baseline keeps
     every slab <= dz_max everywhere, so regions without candidates are still sampled."""
     z = np.linspace(0.0, thickness, 4001)
-    rho = np.full_like(z, 1.0 / dz_max)
+    extra = np.zeros_like(z)
     for c in candidates:
         inside = sum(w * (_norm_cdf(thickness, m, s) - _norm_cdf(0.0, m, s)) for m, s, w in c.modes)
         p = sum(w * np.exp(-0.5 * ((z - m) / s) ** 2) / (s * math.sqrt(2 * math.pi)) for m, s, w in c.modes)
-        rho += extra_slices * p / max(inside, 1e-30)
-    rho = np.minimum(rho, 1.0 / dz_min)
-    cum = np.concatenate([[0.0], np.cumsum(0.5 * (rho[1:] + rho[:-1]) * np.diff(z))])
-    n = max(1, int(math.ceil(cum[-1])))
+        extra += extra_slices * p / max(inside, 1e-30)
+
+    def cumulative(scale):
+        rho = np.minimum(1.0 / dz_max + scale * extra, 1.0 / dz_min)
+        return np.concatenate([[0.0], np.cumsum(0.5 * (rho[1:] + rho[:-1]) * np.diff(z))])
+
+    # Equal-mass slabs are within [dz_min, dz_max] only if each holds exactly unit mass: rescale the candidate term
+    # so that the total mass is an integer n (a fractional total would put the capped slabs just under dz_min, and
+    # merging those pairwise doubled the finest region).
+    total = cumulative(1.0)[-1]
+    n = max(1, int(math.ceil(total - 1e-9)))
+    lo, hi = 1.0, 1.0
+    if total < n - 1e-6 <= cumulative(1e6)[-1]:     # else already integer, or no candidates / saturated: as before
+        while cumulative(hi)[-1] < n:
+            hi *= 2.0
+        for _ in range(60):
+            mid = 0.5 * (lo + hi)
+            lo, hi = (mid, hi) if cumulative(mid)[-1] < n else (lo, mid)
+    cum = cumulative(hi)
     b = np.interp(np.linspace(0.0, cum[-1], n + 1), cum, z)
     b[0], b[-1] = 0.0, thickness
     while len(b) > 2 and np.diff(b).min() < dz_min - 1e-9:      # rounding can leave a slab just under dz_min:

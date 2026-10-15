@@ -8,13 +8,15 @@
     python run_benchmark.py quantem --specimen A_z100 --arms A,D --probes true_fixed,nominal_fixed,smatrix_fixed,\
         nominal_trained,smatrix_trained --device cuda                                       # probe separation
 
-S-matrix stage (section 8): joint S-matrix + probe fit (simple_joint) on all three defoci, starting from the nominal
-aberrations (dataset `reference` fixed: gauge).  A random 10 % of the scan positions (the same in every dataset) is
+S-matrix stage (section 8): joint S-matrix + probe fit (simple_joint) on all three defoci by default, starting from the
+nominal aberrations (dataset `reference` fixed: gauge). With --single-dataset, only --dataset is loaded and its
+nominal probe stays fixed; the strict geometry check still applies. A random 10 % of scan positions is
 held out; the training and held-out amplitude losses are both recorded.  Then refocusing over -0.2 T .. 1.2 T, lateral
 feature detection (simple_joint.detect_features) and per-feature depth from the refocused response (peak of
 |arg(1 + r(z))|, no templates, no truth), each candidate saved with its response profile, peak contrast, predicted
 uncertainty and a reliability flag.  Outputs: runs/<config>/<specimen>/smatrix_<variant>_<noise>_s<seed>[_<tag>]/
 (S is large and stays out of git; summary.json and small arrays are copied to results/smatrix/).
+QuantEM --single-dataset fits only --dataset without S-matrix priors, using uniform slices and a nominal probe.
 """
 import argparse, json, math, os, shutil, time
 
@@ -26,7 +28,7 @@ import bench
 sj = bench.sj
 
 
-def load_variant(cfg, name, variant, noise):
+def load_variant(cfg, name, variant, noise, datasets=None):
     """Patterns (D, Ny, Nx, K, K) in FFT order, scan positions [S-grid px, first at K/2], cell offset [px], metadata."""
     import zarr
     import run_realization as rr
@@ -34,7 +36,8 @@ def load_variant(cfg, name, variant, noise):
     setup = bench.make_setup(cfg)
     sd = bench.specimen_dir(cfg, name)
     dps, nominal_focus = [], []
-    for d in range(len(cfg["defocus"]["nominal_C10"])):
+    datasets = range(len(cfg["defocus"]["nominal_C10"])) if datasets is None else datasets
+    for d in datasets:
         ddir = os.path.join(sd, f"{variant}_{noise}", f"def{d}")
         x = rr.load_dataset(ddir, SimpleNamespace(energy=None, alpha=None, defocus=None), d)
         if x["data"].shape[-1] != setup.K or abs(x["dk"][0] - 1 / (setup.K * setup.dr)) > 1e-9:
@@ -75,13 +78,16 @@ def smatrix(cfg, a, log=print):
     import run_realization as rr
     setup = bench.make_setup(cfg)
     T = float(cfg["specimen"]["thickness_A"])
-    dps, pos, offset, nominal_focus = load_variant(cfg, a.specimen, a.variant, a.noise)
+    datasets = [a.dataset] if a.single_dataset else list(range(len(cfg["defocus"]["nominal_C10"])))
+    dps, pos, offset, nominal_focus = load_variant(cfg, a.specimen, a.variant, a.noise, datasets=datasets)
     D, ny, nx = dps.shape[:3]
     Ys = int(pos.max() + setup.K - setup.K // 2)                      # minimal S grid covering every window
     setup = sj.Setup(energy_ev=setup.energy_ev, alpha=setup.alpha, dr=setup.dr, K=setup.K, Y=Ys, taper=setup.taper)
     nominal = np.zeros((D, len(sj.NAMES)))
     nominal[:, 0] = -nominal_focus                                     # metadata defocus = -C10 (nominal only)
-    ref = int(cfg["defocus"]["reference"])
+    ref = 0 if a.single_dataset else int(cfg["defocus"]["reference"])
+    if a.single_dataset:
+        log(f"Single dataset {a.dataset}: the nominal probe is fixed; S and probe cannot be independently recovered.")
     checks = sj.check_geometry(setup, pos, nominal, T, abtem=True, strict=True, log=log)
     hold = heldout_mask((ny, nx), a.heldout, a.split_seed)
     amp, P, didx = sj.prepare_data(dps, pos, device=a.device)
@@ -90,6 +96,8 @@ def smatrix(cfg, a, log=print):
     results = []
     for seed in a.seeds:
         tag = f"smatrix_{a.variant}_{a.noise}_s{seed}" + (f"_{a.tag}" if a.tag else "")
+        if a.single_dataset:
+            tag += f"_single_d{a.dataset}"
         out = os.path.join(bench.HERE, "runs", cfg["name"], a.specimen, tag)
         os.makedirs(out, exist_ok=True)
         torch.manual_seed(seed)
@@ -101,12 +109,14 @@ def smatrix(cfg, a, log=print):
                 model.S.add_((a.init_noise / math.sqrt(2) * z).to(model.S.device))
         amp_train = amp                                                # fit() sees only the training rows below
         t0 = time.time()
-        hist = fit_subset(model, amp_train, train_idx, a, seed, log)
+        hist = fit_subset(model, amp_train, train_idx, a, seed, log,
+                          checkpoint=os.path.join(out, "checkpoint.pt") if a.checkpoint_every > 0 else None,
+                          on_epoch=make_monitor(out, setup, offset, T, a) if a.monitor_every > 0 else None)
         fit_time = time.time() - t0
         loss_train = amp_loss(model, amp, train_idx, a.batch)
         loss_test = amp_loss(model, amp, test_idx, a.batch) if len(test_idx) else float("nan")
         coeff = model.coefficients().detach().cpu().numpy()
-        log(f"[{tag}] {a.epochs} epochs {fit_time:.0f} s: train loss {loss_train:.3e}, held-out {loss_test:.3e}; C10 "
+        log(f"[{tag}] best epoch {getattr(model, 'best_epoch', len(hist))} used; {len(hist)} of {a.epochs} epochs {fit_time:.0f} s: train loss {loss_train:.3e}, held-out {loss_test:.3e}; C10 "
             f"{np.round(coeff[:, 0], 2).tolist()} C12a {np.round(coeff[:, 1], 2).tolist()} C12b {np.round(coeff[:, 2], 2).tolist()}")
         # refocus and depth candidates (no ground truth)
         dz = a.dz
@@ -157,7 +167,9 @@ def smatrix(cfg, a, log=print):
             stage="smatrix", specimen=a.specimen, variant=a.variant, noise=a.noise, seed=seed, tag=a.tag, config=cfg["_path"],
             config_sha256=cfg["_sha256"], versions=bench.versions(), device=a.device,
             setup=dict(energy_ev=setup.energy_ev, alpha=setup.alpha, taper=setup.taper, dr=setup.dr, K=setup.K, Y=setup.Y),
-            s_grid_offset_px=offset.tolist(), crop=[c0, c1], reference_dataset=ref, trainable=a.trainable, epochs=a.epochs,
+            s_grid_offset_px=offset.tolist(), crop=[c0, c1], reference_dataset=datasets[ref],
+            datasets=datasets, single_dataset=a.single_dataset,
+            trainable="" if a.single_dataset else a.trainable, epochs=a.epochs,
             batch=a.batch, lr_S=a.lr_S, mode=a.mode, init_noise=a.init_noise, heldout_fraction=a.heldout,
             split_seed=a.split_seed, n_train=int(len(train_idx)), n_heldout=int(len(test_idx)),
             loss_train=loss_train, loss_heldout=loss_test, loss_history=list(map(float, hist)), fit_time_s=fit_time,
@@ -180,7 +192,38 @@ PROBE_MODES = {                  # name: (initial probe, trainable)
     "nominal_trained": ("nominal", True),     # 4
     "smatrix_trained": ("smatrix", True),     # 5
 }
-ARMS = {"A": ("uniform", False), "B": ("uniform", True), "C": ("smatrix", False), "D": ("smatrix", True)}
+ARMS = {"A": ("uniform", False), "B": ("uniform", True), "C": ("smatrix", False), "D": ("smatrix", True),
+        "E": ("smatrix", "object")}   # E: initial object = the S-matrix's own reconstruction (smatrix_object_init)
+E_SCALES = (0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 4.0, 6.0)
+
+
+def smatrix_object_init(cfg, a, grid, shape, j0, T):
+    """Initial QuantEM potential from the S-matrix reconstruction (arm E), before scaling: (N, *shape) rad.
+
+    Lateral: the S-matrix projected-potential estimate = phase of the refocused wave at mid-depth over the scan field
+    (runs/.../refocused_phase.npy, S-grid crop [K/2, Y - K/2], pixel 0 = first scan position = QuantEM pixel j0; same
+    0.2 A pixel), 2-D unwrapped, minimum (1st percentile) set to 0, clipped >= 0 (QuantEM positivity).  Outside the scan
+    field: edge values.  Depth: slab k gets the fraction of the S-matrix focus curve (arrays.npz) inside it.  The
+    absolute scale is chosen afterwards from the data (QuantEM forward loss, E_SCALES), never from the ground truth."""
+    from skimage.restoration import unwrap_phase
+    run = os.path.join(bench.HERE, "runs", cfg["name"], a.specimen, a.smatrix_run)
+    arr = np.load(os.path.join(run, "arrays.npz"))
+    zg, curve = arr["depth_grid"], arr["focus_curve"]
+    ph = np.load(os.path.join(run, "refocused_phase.npy"), mmap_mode="r")
+    P = unwrap_phase(np.asarray(ph[int(np.argmin(np.abs(zg - T / 2)))], float))
+    P = np.clip(P - np.percentile(P, 1), 0.0, None)
+    zf = np.linspace(0.0, T, 4001)
+    cf = np.interp(zf, zg, curve)
+    cum = np.concatenate([[0.0], np.cumsum(0.5 * (cf[1:] + cf[:-1]) * np.diff(zf))])
+    w = np.diff(np.interp(grid.boundaries, zf, cum)) / cum[-1]
+    n = P.shape[0]
+    lo = int(round(j0))
+    if lo < 0 or lo + n > min(shape):
+        raise ValueError(f"S-matrix field ({n} px at {lo}) does not fit the QuantEM object {shape}")
+    full = np.pad(P, ((lo, shape[0] - lo - n), (lo, shape[1] - lo - n)), mode="edge")
+    info = dict(source=os.path.relpath(run, bench.HERE), mid_depth_A=float(zg[int(np.argmin(np.abs(zg - T / 2)))]),
+                projected_max_rad=float(P.max()), depth_weights=w.tolist())
+    return w[:, None, None] * full[None], info
 
 
 def quantem(cfg, a, log=print):
@@ -198,22 +241,34 @@ def quantem(cfg, a, log=print):
     ddir = os.path.join(sd, f"{a.variant}_{a.noise}", f"def{qd}")
     d0 = rr.load_dataset(ddir, SimpleNamespace(energy=None, alpha=None, defocus=None), qd)
     pdset = fc.setup_dataset(d0, setup.lam)
-    srun = os.path.join(bench.HERE, "results", "smatrix", cfg["name"], a.specimen, a.smatrix_run, "summary.json")
-    sm = json.load(open(srun))
-    coeff_s = np.array(sm["coefficients"])
-    nominal = np.array(sm["nominal"])
-    cands_all = sm["depth"]["candidates"]
+    if a.single_dataset:
+        nominal_probe = np.zeros(len(sj.NAMES))
+        nominal_probe[0] = -d0["defocus"]
+        cands_all = []
+    else:
+        srun = os.path.join(bench.HERE, "results", "smatrix", cfg["name"], a.specimen, a.smatrix_run, "summary.json")
+        sm = json.load(open(srun))
+        datasets = sm.get("datasets", list(range(len(sm["coefficients"]))))
+        if qd not in datasets:
+            raise ValueError(f"dataset {qd} is not present in S-matrix run {a.smatrix_run}")
+        probe_index = datasets.index(qd)
+        nominal_probe = np.array(sm["nominal"])[probe_index]
+        smatrix_probe = np.array(sm["coefficients"])[probe_index]
+        cands_all = sm["depth"]["candidates"]
     cands = [c for c in cands_all if c["reliable"]] if a.candidates == "reliable" else cands_all
     dcands = [qe.DepthCandidate(y=c["y"], x=c["x"], modes=[(c["z"], max(c["uncertainty_A"], 2.0), 1.0)],
                                 phase=float(np.clip(c["amplitude"], 0.05, 1.0))) for c in cands]
     dz_max, dz_min = a.dz_max or T / 12, a.dz_min or T / 40
     g_s = qe.slice_grid(dcands, T, dz_max=dz_max, dz_min=dz_min, extra_slices=a.extra_slices) if dcands else None
     n = g_s.num_slices if g_s is not None else int(math.ceil(T / dz_max))
+    if a.num_slices is not None:
+        n = a.num_slices
     g_u = qe.SliceGrid(boundaries=np.linspace(0.0, T, n + 1), thickness=T)
     g_s = g_s or g_u
     K = setup.K
-    probe_arrays = {"nominal": bench.ad.entrance_probe(setup, nominal[qd]),
-                    "smatrix": bench.ad.entrance_probe(setup, coeff_s[qd])}
+    probe_arrays = {"nominal": bench.ad.entrance_probe(setup, nominal_probe)}
+    if not a.single_dataset:
+        probe_arrays["smatrix"] = bench.ad.entrance_probe(setup, smatrix_probe)
     if any(PROBE_MODES[m][0] == "true" for m in a.probes):
         import zarr                                            # ORACLE: the true probe, used only in mode true_fixed
         probe_arrays["true"] = zarr.open_array(os.path.join(sd, "ground_truth", f"probe_d{qd}.zarr", "array0"), mode="r")[...]
@@ -229,8 +284,9 @@ def quantem(cfg, a, log=print):
                                                          qe.SliceGrid(boundaries=np.array([0, T / 2, T]), thickness=T)),
                                 fc.truth_probe_on_grid((probe_arrays["nominal"], setup.dr), (K, K), setup.dr,
                                                        np.ones((K, K))), a.qdevice).probe)[0]
+    grid_label = "uniform" if a.single_dataset else "S-informed"
     log(f"QuantEM: dataset {qd} ({a.variant}, {a.noise}), object {shape} at {dr_q:.3f} A, {n} planes; candidates "
-        f"{len(cands)}/{len(cands_all)} ({a.candidates}); S-informed slabs {np.round(g_s.slab_thicknesses, 1).tolist()} A")
+        f"{len(cands)}/{len(cands_all)} ({a.candidates}); {grid_label} slabs {np.round(g_s.slab_thicknesses, 1).tolist()} A")
     runs = []
     for arm in a.arms:
         slices, informed = ARMS[arm]
@@ -239,14 +295,32 @@ def quantem(cfg, a, log=print):
             init, trained = PROBE_MODES[pm]
             for seed in a.seeds:
                 tag = f"quantem_{a.variant}_{a.noise}_d{qd}_{arm}_{pm}_c{a.candidates}_s{seed}" + (f"_{a.tag}" if a.tag else "")
+                if a.single_dataset:
+                    tag += "_single"
                 out = os.path.join(bench.HERE, "runs", cfg["name"], a.specimen, tag)
                 os.makedirs(out, exist_ok=True)
                 torch.manual_seed(seed)
                 np.random.seed(seed)
                 phi = np.full((grid.num_slices,) + shape, 1e-3)
-                if informed and dcands:
+                if informed is True and dcands:
                     phi += qe.initial_potential(dcands, grid, shape, dr_q, origin=origin)
                 prb = fc.truth_probe_on_grid((probe_arrays[init], setup.dr), ref.shape, dr_q, ref)
+                init_info = None
+                if informed == "object":
+                    if a.single_dataset:
+                        raise SystemExit("arm E needs an S-matrix run (not --single-dataset)")
+                    base, init_info = smatrix_object_init(cfg, a, grid, shape, p0.min(), T)
+                    trial = {}
+                    for sc in E_SCALES:                   # scale from the data: QuantEM loss of the initial object
+                        ptt = fc.make_pt(pdset, d0, qe.to_quantem((phi + sc * base).astype(np.float32), grid), prb,
+                                         a.qdevice)
+                        trial[sc] = fc.predict(ptt, np.ones(tuple(ptt.dset.detector_mask.shape)))["quantem_loss"]
+                        del ptt
+                    best = min(trial, key=trial.get)
+                    phi = phi + best * base
+                    init_info.update(scale=best, scale_losses={str(k): v for k, v in trial.items()})
+                    log(f"arm E: S-matrix object init, loss by scale {({k: round(v, 3) for k, v in trial.items()})}; "
+                        f"scale {best}")
                 pt = fc.make_pt(pdset, d0, qe.to_quantem(phi.astype(np.float32), grid), prb, a.qdevice)
                 p_init = np.asarray(pt.probe)[0].copy()
                 cons = {"object": {"positivity": True}}
@@ -268,6 +342,7 @@ def quantem(cfg, a, log=print):
                                     probe=probe.astype(np.complex64), initial_probe=p_init.astype(np.complex64), loss=losses)
                 tail = losses[-max(5, len(losses) // 10):]
                 summ = dict(stage="quantem", specimen=a.specimen, arm=arm, slices=slices, informed_potential=informed,
+                            object_init=init_info,
                             probe_mode=pm, probe_init=init, probe_trained=trained, oracle=init == "true",
                             candidates=a.candidates, n_candidates=len(cands), dataset=qd, variant=a.variant, noise=a.noise,
                             seed=seed, iters=a.iters, probe_warmup=warm, object_lr=a.qlr, probe_lr=a.probe_lr if trained else 0,
@@ -275,8 +350,10 @@ def quantem(cfg, a, log=print):
                             object_shape=list(shape), dr_quantem=dr_q, first_scan_pixel=p0.tolist(), origin_A=list(origin),
                             final_loss=float(losses[-1]), loss_history=losses.tolist(),
                             converged_rel_change_last10pct=float((tail.max() - tail.min()) / max(abs(tail.mean()), 1e-30)),
-                            time_s=dt, smatrix_run=a.smatrix_run, config=cfg["_path"], config_sha256=cfg["_sha256"],
-                            note=("one defocus dataset (fewer measurements than the three-defocus S-matrix fit); "
+                            time_s=dt, smatrix_run=None if a.single_dataset else a.smatrix_run,
+                            single_dataset=a.single_dataset, config=cfg["_path"], config_sha256=cfg["_sha256"],
+                            note=("one defocus dataset; no S-matrix or ground-truth priors" if a.single_dataset else
+                                  "one defocus dataset with S-matrix priors; "
                                   "installed QuantEM 0f60f90 has no multi-dataset reconstruction"))
                 json.dump(summ, open(os.path.join(out, "summary.json"), "w"), indent=1, default=_json)
                 dst = os.path.join(bench.HERE, "results", "quantem", cfg["name"], a.specimen, tag)
@@ -288,14 +365,49 @@ def quantem(cfg, a, log=print):
     return runs
 
 
-def fit_subset(model, amp, idx, a, seed, log):
+def make_monitor(out, setup, offset, T, a):
+    """Per-epoch snapshot for live monitoring (plot_fit_monitor.py): loss, probe coefficients, and the S-matrix refocused
+    through depth (focus curve on a 4 A grid, phase sections every 20 A over the scanned field, focus-curve layers).
+    Small files (~0.5 MB) in <run>/monitor/epoch_NNN.npz; computed on the fit's device without gradients."""
+    import run_realization as rr
+    mdir = os.path.join(out, "monitor")
+    os.makedirs(mdir, exist_ok=True)
+    zg = np.arange(-0.2 * T, 1.2 * T + 1e-6, 4.0)
+    zs = np.arange(10.0, T, 20.0)
+    c0, c1 = setup.K // 2, setup.Y - setup.K // 2 + 1
+    inside = (zg >= 0) & (zg <= T)
+
+    def cb(model, ep, history):
+        if ep % a.monitor_every and ep != a.epochs:
+            return
+        t0 = time.time()
+        vol = sj.refocus(model.S, setup, np.r_[zg, zs])
+        curve = sj.FOCUS_METRICS["phase_var"](vol[:len(zg), c0:c1, c0:c1])
+        sec = np.angle(vol[len(zg):, c0:c1, c0:c1]).astype(np.float32)
+        mid = vol[int(np.argmin(np.abs(zg - T / 2))), c0:c1, c0:c1].astype(np.complex64)   # projected-potential estimate
+        layers = rr.local_peaks(zg[inside], curve[inside], 5, frac=0.25, min_sep=0.5 * setup.lam / setup.alpha ** 2)
+        np.savez(os.path.join(mdir, f"epoch_{ep:03d}.npz"), epoch=ep, loss=np.array(history),
+                 coefficients=model.coefficients().detach().cpu().numpy(),
+                 nominal=model.nominal.detach().cpu().numpy(), names=np.array(sj.NAMES),
+                 zg=zg, curve=curve, zs=zs, sections=sec, wave_mid=mid, layers=np.array(layers), crop=np.array([c0, c1]),
+                 offset_px=np.asarray(offset), dr=setup.dr, K=setup.K, Y=setup.Y, thickness=T,
+                 seconds=time.time() - t0)
+        del vol
+    return cb
+
+
+def fit_subset(model, amp, idx, a, seed, log, checkpoint=None, on_epoch=None):
     """simple_joint.fit restricted to the training patterns (held-out patterns never enter the optimisation)."""
     sub = torch.as_tensor(idx, device=amp.device)
     pos, didx = model.pos, model.didx
     model.pos, model.didx = pos[sub], didx[sub]
     try:
         return sj.fit(model, amp[sub], epochs=a.epochs, warmup=a.warmup, batch=a.batch, lr_S=a.lr_S, mode=a.mode,
-                      seed=seed, log=(lambda m: log("  " + m)) if a.verbose else (lambda m: None))
+                      seed=seed, log=(lambda m: log("  " + m)) if a.verbose else (lambda m: None),
+                      checkpoint=checkpoint, checkpoint_every=a.checkpoint_every, resume=a.resume,
+                      patience=a.patience, min_rel_improvement=a.min_rel_improvement, on_epoch=on_epoch,
+                      best_path=os.path.join(os.path.dirname(checkpoint), "best.pt") if checkpoint else None,
+                      restore_best=not a.no_restore_best)
     finally:
         model.pos, model.didx = pos, didx
 
@@ -310,6 +422,9 @@ def main():
     ap.add_argument("--seeds", type=lambda s: [int(v) for v in s.split(",")], default=[0])
     ap.add_argument("--tag", default="")
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
+    ap.add_argument("--single-dataset", action="store_true",
+                    help="use only --dataset; QuantEM uses no S priors, S-matrix keeps the nominal probe fixed")
+    ap.add_argument("--dataset", type=int, default=1, help="defocus dataset for QuantEM or single-dataset S recovery")
     ap.add_argument("--epochs", type=int, default=40)
     ap.add_argument("--warmup", type=int, default=8)
     ap.add_argument("--batch", type=int, default=16)
@@ -318,6 +433,12 @@ def main():
     ap.add_argument("--trainable", default="C10,C12a,C12b")
     ap.add_argument("--init-noise", type=float, default=0.0, help="complex Gaussian added to the vacuum S (init test)")
     ap.add_argument("--heldout", type=float, default=0.1, help="fraction of scan positions held out")
+    ap.add_argument("--checkpoint-every", type=int, default=5, help="epochs between checkpoints (0 = none)")
+    ap.add_argument("--monitor-every", type=int, default=0, help="epochs between monitor snapshots (0 = none)")
+    ap.add_argument("--no-restore-best", action="store_true", help="keep the last epoch instead of the lowest-loss one")
+    ap.add_argument("--resume", action="store_true", help="continue from the run directory's checkpoint.pt")
+    ap.add_argument("--patience", type=int, default=None, help="early stopping: epochs without improvement (None = off)")
+    ap.add_argument("--min-rel-improvement", type=float, default=0.01, help="early stopping threshold (relative)")
     ap.add_argument("--split-seed", type=int, default=0)
     ap.add_argument("--dz", type=float, default=2.0)
     ap.add_argument("--detect-k", type=float, default=4.0)
@@ -326,9 +447,9 @@ def main():
     ap.add_argument("--threads", type=int, default=4)
     q = ap.add_argument_group("quantem")
     q.add_argument("--smatrix-run", default="smatrix_window_noiseless_s0", help="results/smatrix/<config>/<specimen>/<run>")
-    q.add_argument("--dataset", type=int, default=1, help="defocus dataset for QuantEM (default: middle)")
-    q.add_argument("--arms", type=lambda s: s.split(","), default=list("ABCD"))
-    q.add_argument("--probes", type=lambda s: s.split(","), default=["smatrix_trained"],
+    q.add_argument("--num-slices", type=int, default=None, help="uniform slice count for single-dataset QuantEM")
+    q.add_argument("--arms", type=lambda s: s.split(","), default=None)
+    q.add_argument("--probes", type=lambda s: s.split(","), default=None,
                    help=f"comma list of {list(PROBE_MODES)}")
     q.add_argument("--candidates", default="all", choices=["all", "reliable"], help="confidence filtering of S priors")
     q.add_argument("--iters", type=int, default=200)
@@ -343,7 +464,17 @@ def main():
     a = ap.parse_args()
     torch.set_num_threads(a.threads)
     cfg = bench.load_config(a.config)
-    a.qdevice = "gpu" if a.device.startswith("cuda") else "cpu"
+    a.arms = a.arms if a.arms is not None else (["A"] if a.single_dataset else list("ABCD"))
+    a.probes = a.probes if a.probes is not None else (["nominal_trained"] if a.single_dataset else ["smatrix_trained"])
+    if (a.single_dataset or a.stage == "quantem") and not 0 <= a.dataset < len(cfg["defocus"]["nominal_C10"]):
+        ap.error("--dataset is outside the configured defocus datasets")
+    if a.single_dataset and a.stage == "quantem":
+        if a.arms != ["A"] or any(probe not in ("nominal_fixed", "nominal_trained") for probe in a.probes):
+            ap.error("single-dataset QuantEM requires --arms A and nominal_fixed/nominal_trained probes (no priors)")
+    if a.num_slices is not None:
+        if a.stage != "quantem" or not a.single_dataset or a.num_slices < 1:
+            ap.error("--num-slices must be positive and requires quantem --single-dataset")
+    a.qdevice = a.device if a.device.startswith("cuda") else "cpu"    # ProbePixelated.from_array needs a torch name
     for m in getattr(a, "probes", []):
         if m not in PROBE_MODES:
             raise SystemExit(f"unknown probe mode {m}; choose from {list(PROBE_MODES)}")
