@@ -1,0 +1,117 @@
+{
+ "geometry": {
+  "dr_quantem": 0.1999999861691832,
+  "p0": [
+   8.0,
+   8.0
+  ],
+  "scan_origin_A": [
+   8.0,
+   8.0
+  ],
+  "object_shape": [
+   736,
+   736
+  ],
+  "bright_field_radius_inv_A": 0.4789597864310437,
+  "truth_probe_resampled_vs_truth": {
+   "overlap": 0.9973765084695972,
+   "rms_phase": 0.04948994062902807
+  }
+ },
+ "configs": {
+  "rr_2s_fixed/baseline: recon object + recon probe": {
+   "L_data": 0.010726192048759863,
+   "L_data_bright_field": 0.0014923240696199957,
+   "L_data_dark_field": 0.3395704818328046,
+   "dark_field_fraction_of_measured_intensity": 0.0273128203260264,
+   "quantem_loss": 14.663386482144029,
+   "slabs": 2
+  },
+  "rr_2s_fixed/baseline: recon object + truth probe": {
+   "L_data": 0.009413294778890345,
+   "L_data_bright_field": 0.0017317956651385607,
+   "L_data_dark_field": 0.28297331602296416,
+   "dark_field_fraction_of_measured_intensity": 0.0273128203260264,
+   "quantem_loss": 12.867341548008497,
+   "slabs": 2
+  },
+  "rr_2s_train/baseline: recon object + recon probe": {
+   "L_data": 0.010715714830623948,
+   "L_data_bright_field": 0.0014850471148265508,
+   "L_data_dark_field": 0.33944603413898566,
+   "dark_field_fraction_of_measured_intensity": 0.0273128203260264,
+   "quantem_loss": 14.649078180356302,
+   "slabs": 2
+  },
+  "rr_2s_train/baseline: recon object + truth probe": {
+   "L_data": 0.009412334690008132,
+   "L_data_bright_field": 0.0017333684762126159,
+   "L_data_dark_field": 0.28288215216583495,
+   "dark_field_fraction_of_measured_intensity": 0.0273128203260264,
+   "quantem_loss": 12.866067852914725,
+   "slabs": 2
+  },
+  "rr_8s_fixed/baseline: recon object + recon probe": {
+   "L_data": 0.01063329051642317,
+   "L_data_bright_field": 0.0014718018311269741,
+   "L_data_dark_field": 0.33689994787894506,
+   "dark_field_fraction_of_measured_intensity": 0.0273128203260264,
+   "quantem_loss": 14.536597940153758,
+   "slabs": 8
+  },
+  "rr_8s_fixed/baseline: recon object + truth probe": {
+   "L_data": 0.009352046590570403,
+   "L_data_bright_field": 0.0017097621801576786,
+   "L_data_dark_field": 0.2815155207649051,
+   "dark_field_fraction_of_measured_intensity": 0.0273128203260264,
+   "quantem_loss": 12.78387465452608,
+   "slabs": 8
+  },
+  "truth object, 8 x 0.75 A slabs + truth probe (model floor)": {
+   "L_data": 0.00870270714426244,
+   "L_data_bright_field": 0.0013878453266387052,
+   "L_data_dark_field": 0.2692057319567279,
+   "dark_field_fraction_of_measured_intensity": 0.0273128203260264,
+   "quantem_loss": 11.861781352971748,
+   "slabs": 8
+  },
+  "truth object, 2 x 3 A slabs + truth probe": {
+   "L_data": 0.008725218263108916,
+   "L_data_bright_field": 0.0013893384000598326,
+   "L_data_dark_field": 0.2699767554255627,
+   "dark_field_fraction_of_measured_intensity": 0.0273128203260264,
+   "quantem_loss": 11.890040367689334,
+   "slabs": 2
+  },
+  "truth object, 1 slab (projected) + truth probe": {
+   "L_data": 0.00878132221611952,
+   "L_data_bright_field": 0.0013918873244611514,
+   "L_data_dark_field": 0.2719401061994256,
+   "dark_field_fraction_of_measured_intensity": 0.0273128203260264,
+   "quantem_loss": 11.962196590431944,
+   "slabs": 1
+  },
+  "truth object, 8 slabs + nominal probe (QuantEM start)": {
+   "L_data": 0.009927160188488996,
+   "L_data_bright_field": 0.0011224692961867948,
+   "L_data_dark_field": 0.3234872337988189,
+   "dark_field_fraction_of_measured_intensity": 0.0273128203260264,
+   "quantem_loss": 13.536481198296222,
+   "slabs": 8
+  },
+  "vacuum (zero potential) + truth probe (reference)": {
+   "L_data": 0.011992078667537091,
+   "L_data_bright_field": 0.0020296390055080226,
+   "L_data_dark_field": 0.3667828773422995,
+   "dark_field_fraction_of_measured_intensity": 0.0273128203260264,
+   "quantem_loss": 16.01536006035815,
+   "slabs": 2
+  }
+ },
+ "final_training_loss": {
+  "rr_2s_fixed/baseline": 14.714148911562832,
+  "rr_2s_train/baseline": 14.699724847620184,
+  "rr_8s_fixed/baseline": 14.612682602622293
+ }
+}
