@@ -22,7 +22,8 @@ import run_realization as rr
 
 LABELS = {"A": "A: uniform slices, flat start", "B": "B: uniform slices, S-informed start",
           "C": "C: S-informed slices, flat start", "D": "D: S-informed slices + start",
-          "E": "E: S-informed slices, S-matrix object start"}
+          "E": "E: S-informed slices, S-matrix object start",
+          "F": "F: uniform slices, S-matrix object start"}
 
 
 def main():
@@ -31,18 +32,20 @@ def main():
     ap.add_argument("--specimen", required=True)
     ap.add_argument("--runs", nargs="+", required=True)
     ap.add_argument("--out", required=True)
+    ap.add_argument("--labels", nargs="+", default=None, help="one label per run (default: the arm description)")
     ap.add_argument("--depths", type=lambda s: [float(v) for v in s.split(",")], default=[25, 60, 100, 140, 175])
     a = ap.parse_args()
     cfg = bench.load_config(a.config)
     sd = bench.specimen_dir(cfg, a.specimen)
     os.makedirs(a.out, exist_ok=True)
     R = []
-    for run in a.runs:
+    for i_run, run in enumerate(a.runs):
         d = os.path.join(bench.HERE, "runs", cfg["name"], a.specimen, run)
         s = json.load(open(os.path.join(d, "summary.json")))
         m = json.load(open(os.path.join(d, "plots", "metrics.json")))
         q = np.load(os.path.join(d, "quantem.npz"))
-        R.append(dict(run=run, s=s, m=m, q=q, label=LABELS.get(s["arm"], s["arm"]) + f" ({s['planes']} planes)"))
+        label = a.labels[i_run] if a.labels else LABELS.get(s["arm"], s["arm"]) + f" ({s['planes']} planes)"
+        R.append(dict(run=run, s=s, m=m, q=q, label=label))
     plt.rcParams.update({"figure.facecolor": "white", "font.size": 9})
     cols = plt.cm.tab10.colors
 
@@ -65,7 +68,7 @@ def main():
     ax[0, 1].legend(fontsize=7)
     ax[0, 2].set_xlabel("iteration"), ax[0, 2].set_title("QuantEM loss"), ax[0, 2].legend(fontsize=7)
     x = np.arange(len(R))
-    names = [f"{r['s']['arm']}{r['s']['planes']}" for r in R]
+    names = [r["label"].split(":")[0] if a.labels else f"{r['s']['arm']}{r['s']['planes']}" for r in R]
     for j, (key, title) in enumerate((("proj", "projected potential corr vs truth"),
                                       ("sel", "depth selectivity = mean slab corr − mean projection corr"),
                                       ("probe", "final probe RMS phase error (rad)"))):

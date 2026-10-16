@@ -17,6 +17,14 @@ feature detection (simple_joint.detect_features) and per-feature depth from the 
 uncertainty and a reliability flag.  Outputs: runs/<config>/<specimen>/smatrix_<variant>_<noise>_s<seed>[_<tag>]/
 (S is large and stays out of git; summary.json and small arrays are copied to results/smatrix/).
 QuantEM --single-dataset fits only --dataset without S-matrix priors, using uniform slices and a nominal probe.
+
+Single-focus probe refinement (experimental, opt-in): `smatrix --single-dataset --single-probe-mode joint` updates the
+--trainable aberrations of the one dataset together with S after the warm-up (JointModel ref=None: no gauge dataset).
+The default `fixed` keeps the nominal probe fixed.  One dataset cannot separate the probe phase from S (any per-beam
+phase moves between them without changing a pattern), so the probe this reaches is selected by the start, the
+optimiser and the schedule, not by the data.  --probe-init C10=-120,... sets the starting coefficients (absolute, A).
+--select-every N picks the best epoch from a fresh full-training-set loss every N epochs (held-out loss is recorded
+at the same epochs but never used for selection).  Output names end in `_single_d<i>_joint`.
 """
 import argparse, json, math, os, shutil, time
 
@@ -85,9 +93,19 @@ def smatrix(cfg, a, log=print):
     setup = sj.Setup(energy_ev=setup.energy_ev, alpha=setup.alpha, dr=setup.dr, K=setup.K, Y=Ys, taper=setup.taper)
     nominal = np.zeros((D, len(sj.NAMES)))
     nominal[:, 0] = -nominal_focus                                     # metadata defocus = -C10 (nominal only)
-    ref = 0 if a.single_dataset else int(cfg["defocus"]["reference"])
-    if a.single_dataset:
+    joint_single = a.single_dataset and a.single_probe_mode == "joint"
+    ref = None if joint_single else (0 if a.single_dataset else int(cfg["defocus"]["reference"]))
+    start = nominal.copy()
+    for item in a.probe_init:
+        start[:, sj.NAMES.index(item[0])] = item[1]
+    if a.single_dataset and not joint_single:
         log(f"Single dataset {a.dataset}: the nominal probe is fixed; S and probe cannot be independently recovered.")
+    if joint_single:
+        log(f"Single dataset {a.dataset}, EXPERIMENTAL joint probe mode: {a.trainable} updated with S after "
+            f"{a.warmup} warm-up epochs (lr_probe {a.lr_probe or 'fit default'}); the probe phase is not identifiable from one dataset.")
+    if a.probe_init:
+        log(f"starting probe coefficients {dict(zip(sj.NAMES, np.round(start[0], 3)))} (nominal "
+            f"{dict(zip(sj.NAMES, np.round(nominal[0], 3)))})")
     checks = sj.check_geometry(setup, pos, nominal, T, abtem=True, strict=not a.allow_underdetermined, log=log)
     if a.allow_underdetermined and not all(c["ok"] for c in checks):
         log("geometry check failed but --allow-underdetermined is set: fitting anyway (expect a degraded S)")
@@ -99,11 +117,11 @@ def smatrix(cfg, a, log=print):
     for seed in a.seeds:
         tag = f"smatrix_{a.variant}_{a.noise}_s{seed}" + (f"_{a.tag}" if a.tag else "")
         if a.single_dataset:
-            tag += f"_single_d{a.dataset}"
+            tag += f"_single_d{a.dataset}" + ("_joint" if joint_single else "")
         out = os.path.join(bench.HERE, "runs", cfg["name"], a.specimen, tag)
         os.makedirs(out, exist_ok=True)
         torch.manual_seed(seed)
-        model = sj.JointModel(setup, P, didx, nominal, trainable=tuple(a.trainable.split(",")), ref=ref, device=a.device)
+        model = sj.JointModel(setup, P, didx, start, trainable=tuple(a.trainable.split(",")), ref=ref, device=a.device)
         if a.init_noise > 0:                                           # sensitivity to initialisation
             g = torch.Generator(device="cpu").manual_seed(1000 + seed)
             with torch.no_grad():
@@ -111,13 +129,36 @@ def smatrix(cfg, a, log=print):
                 model.S.add_((a.init_noise / math.sqrt(2) * z).to(model.S.device))
         amp_train = amp                                                # fit() sees only the training rows below
         t0 = time.time()
-        hist = fit_subset(model, amp_train, train_idx, a, seed, log,
+        evals = []
+        select_fn = None
+        if a.select_every > 0:
+            def select_fn(m):
+                tr_l = amp_loss(m, amp, train_idx, a.eval_batch)
+                te_l = amp_loss(m, amp, test_idx, a.eval_batch) if len(test_idx) else float("nan")
+                evals.append(dict(epoch=len(m.fit_trace["epoch"]) + 1, train=tr_l, heldout=te_l))
+                return tr_l
+        hist = fit_subset(model, amp_train, train_idx, a, seed, log, select_fn=select_fn,
                           checkpoint=os.path.join(out, "checkpoint.pt") if a.checkpoint_every > 0 else None,
                           on_epoch=make_monitor(out, setup, offset, T, a) if a.monitor_every > 0 else None)
         fit_time = time.time() - t0
         loss_train = amp_loss(model, amp, train_idx, a.batch)
         loss_test = amp_loss(model, amp, test_idx, a.batch) if len(test_idx) else float("nan")
         coeff = model.coefficients().detach().cpu().numpy()
+        trace = getattr(model, "fit_trace", {})
+        upd = None
+        if joint_single:                                               # probe updates really happen after warm-up
+            post = [i for i, e in enumerate(trace["epoch"]) if e > a.warmup]
+            gn = [trace["probe_grad_norm_mean"][i] for i in post]
+            moved = np.abs(np.array(trace["coefficients"])[post] - start[None]).max(axis=(1, 2)) if post else np.array([])
+            upd = dict(epochs_with_probe_updates=len(post),
+                       all_grad_finite=bool(post) and all(trace["probe_grad_finite"][i] for i in post),
+                       grad_norm_mean_first=gn[0] if gn else None, grad_norm_mean_last=gn[-1] if gn else None,
+                       grad_nonzero=bool(gn) and all(g is not None and g > 0 for g in gn),
+                       max_coefficient_change_A=float(moved.max()) if len(moved) else 0.0,
+                       final_change_A=dict(zip(sj.NAMES, (coeff[0] - start[0]).tolist())),
+                       coefficients_changed=bool(len(moved) and moved.max() > 1e-6))
+            upd["ok"] = bool(upd["all_grad_finite"] and upd["grad_nonzero"] and upd["coefficients_changed"])
+            log(f"[{tag}] probe update check: {upd}")
         log(f"[{tag}] best epoch {getattr(model, 'best_epoch', len(hist))} used; {len(hist)} of {a.epochs} epochs {fit_time:.0f} s: train loss {loss_train:.3e}, held-out {loss_test:.3e}; C10 "
             f"{np.round(coeff[:, 0], 2).tolist()} C12a {np.round(coeff[:, 1], 2).tolist()} C12b {np.round(coeff[:, 2], 2).tolist()}")
         # refocus and depth candidates (no ground truth)
@@ -169,9 +210,19 @@ def smatrix(cfg, a, log=print):
             stage="smatrix", specimen=a.specimen, variant=a.variant, noise=a.noise, seed=seed, tag=a.tag, config=cfg["_path"],
             config_sha256=cfg["_sha256"], versions=bench.versions(), device=a.device,
             setup=dict(energy_ev=setup.energy_ev, alpha=setup.alpha, taper=setup.taper, dr=setup.dr, K=setup.K, Y=setup.Y),
-            s_grid_offset_px=offset.tolist(), crop=[c0, c1], reference_dataset=datasets[ref],
+            s_grid_offset_px=offset.tolist(), crop=[c0, c1], reference_dataset=None if ref is None else datasets[ref],
             datasets=datasets, single_dataset=a.single_dataset,
-            trainable="" if a.single_dataset else a.trainable, epochs=a.epochs,
+            trainable=a.trainable if (joint_single or not a.single_dataset) else "", epochs=a.epochs,
+            single_probe_mode=a.single_probe_mode if a.single_dataset else None,
+            experimental=("joint S + probe from one dataset: probe phase not identifiable; coefficient movement or "
+                          "lower loss is not evidence of probe recovery") if joint_single else None,
+            warmup=a.warmup, lr_probe=a.lr_probe if a.lr_probe is not None else (0.005 if a.mode == "simultaneous" else 0.05),
+            probe_trained=bool(joint_single or not a.single_dataset), start_coefficients=start.tolist(),
+            probe_init_override={k: v for k, v in a.probe_init}, probe_update_check=upd,
+            selection=dict(method="fresh full-training-set amplitude loss" if a.select_every > 0 else
+                           "running epoch loss", select_every=a.select_every, best_epoch=getattr(model, "best_epoch", None),
+                           restore_best=not a.no_restore_best, evaluations=evals, patience=a.patience),
+            fit_trace=trace,
             batch=a.batch, lr_S=a.lr_S, mode=a.mode, init_noise=a.init_noise, heldout_fraction=a.heldout,
             split_seed=a.split_seed, n_train=int(len(train_idx)), n_heldout=int(len(test_idx)),
             loss_train=loss_train, loss_heldout=loss_test, loss_history=list(map(float, hist)), fit_time_s=fit_time,
@@ -195,8 +246,10 @@ PROBE_MODES = {                  # name: (initial probe, trainable)
     "smatrix_trained": ("smatrix", True),     # 5
 }
 ARMS = {"A": ("uniform", False), "B": ("uniform", True), "C": ("smatrix", False), "D": ("smatrix", True),
-        "E": ("smatrix", "object")}   # E: initial object = the S-matrix's own reconstruction (smatrix_object_init)
+        "E": ("smatrix", "object"),   # E: initial object = the S-matrix's own reconstruction (smatrix_object_init)
+        "F": ("uniform", "object")}   # F: as E on the uniform grid (single-focus handoff Q1/Q3)
 E_SCALES = (0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 4.0, 6.0)
+E_SCALES_EXTRA = (8.0, 12.0, 16.0, 24.0, 32.0)   # tried in order only while the largest scale so far is the best
 
 
 def smatrix_object_init(cfg, a, grid, shape, j0, T):
@@ -228,6 +281,46 @@ def smatrix_object_init(cfg, a, grid, shape, j0, T):
     return w[:, None, None] * full[None], info
 
 
+def smatrix_training_patterns(cfg, a, d0, pt, origin, dr_q):
+    """QuantEM pattern indices of the S-matrix run's TRAINING scan positions (its held-out positions excluded), so the
+    object scale is chosen without the S-matrix validation data.  None if the run held nothing out.  The QuantEM pattern
+    order is matched to the scan grid through the positions themselves (checked to 1e-3 A)."""
+    arr = np.load(os.path.join(bench.HERE, "results", "smatrix", cfg["name"], a.specimen, a.smatrix_run, "arrays.npz"))
+    hold = arr["heldout"] if "heldout" in arr.files else None
+    if hold is None or not hold.any():
+        return None
+    grid_A = np.asarray(d0["positions_A"]).reshape(-1, 2)
+    q_A = pt.dset.scan_positions_px.detach().cpu().numpy() * dr_q + np.asarray(origin)
+    d = np.linalg.norm(q_A[:, None, :] - grid_A[None, :, :], axis=-1)
+    j = d.argmin(axis=1)
+    if d[np.arange(len(j)), j].max() > 1e-3 or len(set(j.tolist())) != len(j):
+        raise ValueError("QuantEM scan positions do not map one-to-one onto the S-matrix scan grid")
+    return np.flatnonzero(~hold.ravel()[j])
+
+
+def _basis(setup):
+    ky, kx = setup.beams()
+    return sj.aberration_basis(torch.as_tensor(ky), torch.as_tensor(kx), setup.lam, sj.NAMES).numpy()
+
+
+def probe_transfer_check(setup, p_quantem, dr_q, p_ref, target_beams, nominal):
+    """QuantEM's initial probe vs the probe it was built from, at the S-matrix beams (no ground truth): overlap and
+    RMS phase (piston/tilt removed), intensity relative to the nominal-probe reference QuantEM normalises to, and
+    the defocus sign check: overlap with the target vs with the target's complex conjugate phase (a flipped C10 sign
+    would swap them)."""
+    import run_realization as rr
+    if target_beams is None:
+        return None
+    ky, kx = setup.beams()
+    q = rr.probe_at_beams(p_quantem, dr_q, ky, kx)
+    t = np.asarray(target_beams)
+    ov, rms = rr.probe_match(q, t, ky, kx)
+    ov_flip, _ = rr.probe_match(q, np.abs(t) * np.exp(-1j * np.angle(t)), ky, kx)
+    return dict(overlap=ov, rms_phase_rad=rms, overlap_sign_flipped=ov_flip, sign_ok=bool(ov > ov_flip),
+                intensity_ratio_to_reference=float((np.abs(p_quantem) ** 2).sum() / (np.abs(p_ref) ** 2).sum()),
+                nominal_C10=float(nominal[0]))
+
+
 def quantem(cfg, a, log=print):
     """QuantEM multislice on one defocus dataset, arms A-D x probe modes, equal planes / iterations / optimiser."""
     import zarr
@@ -253,7 +346,10 @@ def quantem(cfg, a, log=print):
         datasets = sm.get("datasets", list(range(len(sm["coefficients"]))))
         if qd not in datasets:
             raise ValueError(f"dataset {qd} is not present in S-matrix run {a.smatrix_run}")
+        if a.single_focus_handoff and list(datasets) != [qd]:
+            raise SystemExit(f"--single-focus-handoff: S-matrix run {a.smatrix_run} used datasets {datasets}, not [{qd}]")
         probe_index = datasets.index(qd)
+        smatrix_probe_beams = np.load(os.path.join(os.path.dirname(srun), "arrays.npz"))["probe_beams"][probe_index]
         nominal_probe = np.array(sm["nominal"])[probe_index]
         smatrix_probe = np.array(sm["coefficients"])[probe_index]
         cands_all = sm["depth"]["candidates"]
@@ -310,21 +406,33 @@ def quantem(cfg, a, log=print):
                 init_info = None
                 if informed == "object":
                     if a.single_dataset:
-                        raise SystemExit("arm E needs an S-matrix run (not --single-dataset)")
+                        raise SystemExit("arms E/F need an S-matrix run (not --single-dataset)")
                     base, init_info = smatrix_object_init(cfg, a, grid, shape, p0.min(), T)
+                    subset = smatrix_training_patterns(cfg, a, d0, tmp, origin, dr_q)
                     trial = {}
-                    for sc in E_SCALES:                   # scale from the data: QuantEM loss of the initial object
+                    for sc in E_SCALES + E_SCALES_EXTRA:  # scale from the data: QuantEM loss of the initial object
+                        if sc in E_SCALES_EXTRA and min(trial, key=trial.get) != max(trial):
+                            break                         # extend the grid only while its top is the best
                         ptt = fc.make_pt(pdset, d0, qe.to_quantem((phi + sc * base).astype(np.float32), grid), prb,
                                          a.qdevice)
-                        trial[sc] = fc.predict(ptt, np.ones(tuple(ptt.dset.detector_mask.shape)))["quantem_loss"]
+                        trial[sc] = fc.predict(ptt, np.ones(tuple(ptt.dset.detector_mask.shape)),
+                                               subset=subset)["quantem_loss"]
                         del ptt
                     best = min(trial, key=trial.get)
+                    init_info.update(scale_patterns="S-matrix training positions only" if subset is not None else
+                                     "all patterns", n_scale_patterns=None if subset is None else len(subset))
                     phi = phi + best * base
                     init_info.update(scale=best, scale_losses={str(k): v for k, v in trial.items()})
-                    log(f"arm E: S-matrix object init, loss by scale {({k: round(v, 3) for k, v in trial.items()})}; "
+                    log(f"arm {arm}: S-matrix object init, loss by scale {({k: round(v, 3) for k, v in trial.items()})}; "
                         f"scale {best}")
                 pt = fc.make_pt(pdset, d0, qe.to_quantem(phi.astype(np.float32), grid), prb, a.qdevice)
                 p_init = np.asarray(pt.probe)[0].copy()
+                transfer = None if a.single_dataset else probe_transfer_check(setup, p_init, dr_q, ref,
+                                                smatrix_probe_beams if init == "smatrix" else
+                                                (setup.aperture(np.hypot(*setup.beams()))
+                                                 * np.exp(-1j * (nominal_probe @ _basis(setup)))) if init == "nominal"
+                                                else None, nominal_probe)
+                log(f"probe transfer ({init}): {transfer}")
                 cons = {"object": {"positivity": True}}
                 warm = min(a.probe_warmup if trained else a.iters, a.iters)
                 t0 = time.time()
@@ -344,7 +452,8 @@ def quantem(cfg, a, log=print):
                                     probe=probe.astype(np.complex64), initial_probe=p_init.astype(np.complex64), loss=losses)
                 tail = losses[-max(5, len(losses) // 10):]
                 summ = dict(stage="quantem", specimen=a.specimen, arm=arm, slices=slices, informed_potential=informed,
-                            object_init=init_info,
+                            object_init=init_info, probe_transfer=transfer,
+                            smatrix_datasets=None if a.single_dataset else list(datasets),
                             probe_mode=pm, probe_init=init, probe_trained=trained, oracle=init == "true",
                             candidates=a.candidates, n_candidates=len(cands), dataset=qd, variant=a.variant, noise=a.noise,
                             seed=seed, iters=a.iters, probe_warmup=warm, object_lr=a.qlr, probe_lr=a.probe_lr if trained else 0,
@@ -398,13 +507,15 @@ def make_monitor(out, setup, offset, T, a):
     return cb
 
 
-def fit_subset(model, amp, idx, a, seed, log, checkpoint=None, on_epoch=None):
+def fit_subset(model, amp, idx, a, seed, log, checkpoint=None, on_epoch=None, select_fn=None):
     """simple_joint.fit restricted to the training patterns (held-out patterns never enter the optimisation)."""
     sub = torch.as_tensor(idx, device=amp.device)
     pos, didx = model.pos, model.didx
     model.pos, model.didx = pos[sub], didx[sub]
     try:
         return sj.fit(model, amp[sub], epochs=a.epochs, warmup=a.warmup, batch=a.batch, lr_S=a.lr_S, mode=a.mode,
+                      lr_probe=a.lr_probe, select_fn=None if select_fn is None else _full_index(model, pos, didx, select_fn),
+                      select_every=max(a.select_every, 1),
                       seed=seed, log=(lambda m: log("  " + m)) if a.verbose else (lambda m: None),
                       checkpoint=checkpoint, checkpoint_every=a.checkpoint_every, resume=a.resume,
                       patience=a.patience, min_rel_improvement=a.min_rel_improvement, on_epoch=on_epoch,
@@ -412,6 +523,28 @@ def fit_subset(model, amp, idx, a, seed, log, checkpoint=None, on_epoch=None):
                       restore_best=not a.no_restore_best)
     finally:
         model.pos, model.didx = pos, didx
+
+
+def _full_index(model, pos, didx, fn):
+    """Wrap a selection function so it sees the model with every pattern indexed (fit_subset narrows them)."""
+    def wrapped(m):
+        sp, sd = m.pos, m.didx
+        m.pos, m.didx = pos, didx
+        try:
+            return fn(m)
+        finally:
+            m.pos, m.didx = sp, sd
+    return wrapped
+
+
+def _probe_init(s):
+    out = []
+    for item in filter(None, s.split(",")):
+        k, v = item.split("=")
+        if k not in sj.NAMES:
+            raise argparse.ArgumentTypeError(f"unknown aberration {k}")
+        out.append((k, float(v)))
+    return out
 
 
 def main():
@@ -430,6 +563,15 @@ def main():
     ap.add_argument("--allow-underdetermined", action="store_true",
                     help="S-matrix: fit even if the geometry check fails (e.g. one defocus dataset); "
                          "the failed check is still logged and saved in summary.json")
+    ap.add_argument("--single-probe-mode", default="fixed", choices=["fixed", "joint"],
+                    help="smatrix --single-dataset: keep the nominal probe fixed (default) or update it jointly with S "
+                         "(experimental: not identifiable from one dataset)")
+    ap.add_argument("--probe-init", type=_probe_init, default=[],
+                    help="starting aberrations for single-dataset joint runs, e.g. C10=-120,C12a=3 [A, absolute]")
+    ap.add_argument("--lr-probe", type=float, default=None, help="probe learning rate (default: simple_joint.fit's)")
+    ap.add_argument("--select-every", type=int, default=0,
+                    help="pick the best epoch by a fresh full-training-set loss every N epochs (0 = running loss)")
+    ap.add_argument("--eval-batch", type=int, default=64)
     ap.add_argument("--epochs", type=int, default=40)
     ap.add_argument("--warmup", type=int, default=8)
     ap.add_argument("--batch", type=int, default=16)
@@ -452,7 +594,9 @@ def main():
     ap.add_argument("--threads", type=int, default=4)
     q = ap.add_argument_group("quantem")
     q.add_argument("--smatrix-run", default="smatrix_window_noiseless_s0", help="results/smatrix/<config>/<specimen>/<run>")
-    q.add_argument("--num-slices", type=int, default=None, help="uniform slice count for single-dataset QuantEM")
+    q.add_argument("--num-slices", type=int, default=None, help="uniform slice count (arms A, B, F)")
+    q.add_argument("--single-focus-handoff", action="store_true",
+                   help="refuse --smatrix-run unless it was fitted on --dataset alone")
     q.add_argument("--arms", type=lambda s: s.split(","), default=None)
     q.add_argument("--probes", type=lambda s: s.split(","), default=None,
                    help=f"comma list of {list(PROBE_MODES)}")
@@ -477,8 +621,12 @@ def main():
         if a.arms != ["A"] or any(probe not in ("nominal_fixed", "nominal_trained") for probe in a.probes):
             ap.error("single-dataset QuantEM requires --arms A and nominal_fixed/nominal_trained probes (no priors)")
     if a.num_slices is not None:
-        if a.stage != "quantem" or not a.single_dataset or a.num_slices < 1:
-            ap.error("--num-slices must be positive and requires quantem --single-dataset")
+        if a.stage != "quantem" or a.num_slices < 1:
+            ap.error("--num-slices must be positive and requires quantem")
+    if a.single_probe_mode != "fixed" and not (a.stage == "smatrix" and a.single_dataset):
+        ap.error("--single-probe-mode joint requires smatrix --single-dataset")
+    if a.probe_init and a.single_probe_mode != "joint":
+        ap.error("--probe-init requires --single-probe-mode joint")
     a.qdevice = a.device if a.device.startswith("cuda") else "cpu"    # ProbePixelated.from_array needs a torch name
     for m in getattr(a, "probes", []):
         if m not in PROBE_MODES:

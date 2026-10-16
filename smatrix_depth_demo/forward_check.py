@@ -54,12 +54,14 @@ def make_pt(pdset, d0, obj_model, probe_array, device):
 
 
 @torch.no_grad()
-def predict(pt, bf_mask, batch=64):
-    n = pt.dset.num_gpts
+def predict(pt, bf_mask, batch=64, subset=None):
+    """Forward-model losses of a ptychography object; subset = optional pattern indices (default: all)."""
+    order = np.arange(pt.dset.num_gpts) if subset is None else np.asarray(subset)
+    n = len(order)
     num = den = num_bf = den_bf = 0.0
     q_loss = []
     for i0 in range(0, n, batch):
-        idx = np.arange(i0, min(n, i0 + batch))
+        idx = order[i0:i0 + batch]
         patch_indices, _, frac, descan = pt.dset.forward(idx, pt.obj_padding_px)
         probes = pt.probe_model.forward(frac)
         patches = pt.obj_model.forward(patch_indices)

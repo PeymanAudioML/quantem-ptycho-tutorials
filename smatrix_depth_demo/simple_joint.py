@@ -20,7 +20,9 @@ Loss: amplitude loss  sum_j sum_q (|Z_j(q)| - a_j(q))^2   (Eq. 12), normalised b
 
 Gauge: S and Psi only appear as a product, so an aberration COMMON to all datasets cannot be found from the data.
 Dataset `ref` keeps its nominal aberrations; the others learn corrections relative to it.  Absolute depth (refocus)
-therefore depends on the reference dataset's calibration.
+therefore depends on the reference dataset's calibration.  ref=None fixes no dataset (every dataset's trainable
+aberrations are updated); with a single dataset the probe phase is then not identifiable from the data at all
+(any per-beam probe phase is absorbed by S), so the probe it reaches is set by the starting point and the optimiser.
 """
 import math, os
 from dataclasses import dataclass
@@ -98,6 +100,8 @@ class JointModel(torch.nn.Module):
     dataset_index: (J,) int, which dataset (probe) recorded pattern j
     nominal:       (D, P) nominal aberration coefficients [A] in the order of `names` (e.g. the set defoci)
     trainable:     aberration names refined on the non-reference datasets
+    ref:           index of the gauge dataset whose aberrations stay at nominal, or None for no fixed dataset
+                   (explicit opt-in; do not pass -1, which would select the last dataset)
     """
 
     def __init__(self, setup, positions, dataset_index, nominal, trainable=("C10", "C12a", "C12b"), ref=0,
@@ -121,7 +125,8 @@ class JointModel(torch.nn.Module):
         for j, nm in enumerate(self.names):
             if nm in trainable:
                 mask[:, j] = 1.0
-        mask[ref] = 0.0                                                     # gauge: reference dataset fixed
+        if ref is not None:
+            mask[ref] = 0.0                                                 # gauge: reference dataset fixed
         self.register_buffer("mask", mask)
         self.register_buffer("pos", torch.as_tensor(np.asarray(positions), dtype=torch.long, device=dev))
         self.register_buffer("didx", torch.as_tensor(np.asarray(dataset_index), dtype=torch.long, device=dev))
@@ -182,7 +187,7 @@ def prepare_data(dps, positions, device="cpu"):
 # ------------------------------------------------------------------------------------------------ optimisation
 def fit(model, amp, epochs=40, warmup=8, batch=16, lr_S=0.02, lr_probe=None, mode="simultaneous", probe_steps=5,
         seed=0, log=print, checkpoint=None, checkpoint_every=5, resume=False, patience=None, min_rel_improvement=0.01,
-        on_epoch=None, best_path=None, restore_best=False):
+        on_epoch=None, best_path=None, restore_best=False, select_fn=None, select_every=1):
     """Joint S + probe optimisation by gradient descent (autograd + Adam).  Returns the loss history (per epoch).
 
     The first `warmup` epochs fit S only (nominal probe).  Afterwards, per `mode`:
@@ -201,6 +206,12 @@ def fit(model, amp, epochs=40, warmup=8, batch=16, lr_S=0.02, lr_probe=None, mod
     on_epoch(model, epoch, history): optional callback after every epoch (e.g. a monitor snapshot); runs under no_grad.
     best: the lowest-loss epoch's S and dC are kept (GPU copy) and written to `best_path` with every checkpoint and at
     the end; restore_best=True puts them back into the model when the fit ends (completed or early-stopped).
+    select_fn(model) -> float: optional fresh loss evaluation (no gradients, parameters fixed) used instead of the
+    running epoch loss to pick the best epoch; called every `select_every` epochs and after the last one.  Without it
+    the best epoch is the one with the lowest running loss (parameters change during that epoch).
+    model.fit_trace (dict of per-epoch lists): epoch, running loss, selection loss (None if not evaluated), the (D, P)
+    coefficients after the epoch, and for epochs with probe updates the mean / max norm of the probe gradient over
+    its minibatches and whether every probe gradient was finite.
     """
     if mode not in ("simultaneous", "alternating"):
         raise ValueError(mode)
@@ -213,6 +224,9 @@ def fit(model, amp, epochs=40, warmup=8, batch=16, lr_S=0.02, lr_probe=None, mod
     opt_P = torch.optim.Adam([model.dC], lr=lr_probe)
     train_probe = bool(model.mask.any())
     history = []
+    trace = dict(epoch=[], loss=[], select_loss=[], coefficients=[], probe_grad_norm_mean=[], probe_grad_norm_max=[],
+                 probe_grad_finite=[])
+    model.fit_trace = trace
     start = 0
     if checkpoint and resume and os.path.exists(checkpoint):
         ck = torch.load(checkpoint, map_location=model.S.device, weights_only=False)
@@ -259,14 +273,21 @@ def fit(model, amp, epochs=40, warmup=8, batch=16, lr_S=0.02, lr_probe=None, mod
 
         # pass over all patterns in random minibatches
         total = 0.0
+        both = joint_now and mode == "simultaneous"
+        gsum = torch.zeros((), dtype=torch.float64, device=amp.device)
+        gmax = torch.zeros((), dtype=torch.float64, device=amp.device)
+        gfin = torch.ones((), dtype=torch.bool, device=amp.device)
+        nsteps = 0
         for idx in torch.randperm(J, generator=gen).to(amp.device).split(batch):
-            both = joint_now and mode == "simultaneous"
             opt_S.zero_grad()
             opt_P.zero_grad()
             loss = amplitude_loss(model(idx, fixed="none" if both else "probe"), amp[idx])
             loss.backward()
             opt_S.step()
             if both:
+                g = (model.dC.grad * model.mask).norm()
+                gsum, gmax, gfin = gsum + g, torch.maximum(gmax, g), gfin & torch.isfinite(g)
+                nsteps += 1
                 opt_P.step()
             total += float(loss.detach())
         msg = f"epoch {ep + 1:3d}  loss {total / a2:.6f}"
@@ -283,8 +304,21 @@ def fit(model, amp, epochs=40, warmup=8, batch=16, lr_S=0.02, lr_probe=None, mod
             msg += "  dC [A] " + np.array2string(dC[:, model.mask.any(0).cpu().numpy()], precision=2,
                                                  suppress_small=True).replace("\n", "")
         history.append(total / a2)
-        if history[-1] < best["loss"]:
-            best.update(loss=history[-1], epoch=ep + 1, S=model.S.detach().clone(), dC=model.dC.detach().clone(),
+        sel = None
+        if select_fn is not None and ((ep + 1) % select_every == 0 or ep + 1 == epochs):
+            with torch.no_grad():
+                sel = float(select_fn(model))
+            msg += f"  fresh {sel:.6f}"
+        key = history[-1] if select_fn is None else sel
+        trace["epoch"].append(ep + 1)
+        trace["loss"].append(history[-1])
+        trace["select_loss"].append(sel)
+        trace["coefficients"].append(model.coefficients().detach().cpu().numpy().tolist())
+        trace["probe_grad_norm_mean"].append(float(gsum) / nsteps if nsteps else None)
+        trace["probe_grad_norm_max"].append(float(gmax) if nsteps else None)
+        trace["probe_grad_finite"].append(bool(gfin) if nsteps else None)
+        if key is not None and key < best["loss"]:
+            best.update(loss=key, epoch=ep + 1, S=model.S.detach().clone(), dC=model.dC.detach().clone(),
                         written=False)
         else:
             msg += f"  (best: epoch {best['epoch']})"
