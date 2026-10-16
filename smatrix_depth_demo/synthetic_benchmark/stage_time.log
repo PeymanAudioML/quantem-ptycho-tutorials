@@ -1,0 +1,72 @@
+# Geometry check: synthetic_benchmark/configs/benchmark_200A_K96.yaml
+
+300 kV (lambda 0.01969 A), 20 mrad; dr 0.2 A, window K = 96 (19.2 A), grid Y = 288 (57.6 A); scan 53 x 53 at 0.40 A (20.8 A field); 3 defoci, reference dataset 0.
+
+Patterns 8427; S-matrix beams 1313; S pixels covered 40000; measurements 77,663,232 vs unknown reals 105,040,000 -> **0.739 measurements per unknown**. Depth resolution lambda/alpha^2 = 49.2 A; abTEM band limit 32.8 mrad.
+
+| check | value | limit | ok | note |
+|---|---|---|---|---|
+| beams in window grid | 1.016 | 2.5 | yes | aperture radius vs Nyquist [1/A] |
+| abTEM band limit | 32.81 | 26 | yes | mrad; use smaller dr |
+| window size | 19.2 | 7.652 | yes | window [A] vs probe cone 2*alpha*167 A + 1.0 A |
+| scan inside S grid | 1 | 1 | yes | all windows inside Y x Y |
+| measurements/unknowns | 0.7394 | 0.7 | yes | 3 datasets x 2809 positions, 1313 beams |
+| scan step = whole S-grid pixels | 2 | 2 | yes | 0.400 A = 2 px |
+| pixelated detector = window detector | 0 | 0 | yes | window dk = 1/(K dr) = 0.05208 1/A; pixelated: 3x3 bins of 1/(Y dr) = 0.01736 1/A |
+| true aberrations inside window | 19.2 | 7.652 | yes | with the TRUE defoci |
+
+Memory (MB): patterns_per_variant 310.7, s_matrix_complex64 871.2, s_matrix_with_adam_state 2613.7, forward_window_gather_per_16_patterns 1548.9, potential 33.2
+
+Overall: PASS
+
+A_z100: 3 atoms (3 Au in 1 features), potential (100, 288, 288) verified (5 s)
+  abTEM multislice: dataset 1/3 done
+  abTEM multislice: dataset 2/3 done
+  abTEM multislice: dataset 3/3 done
+A_z100: written to synthetic_benchmark/data/benchmark_200A_K96/au_single/A_z100 (677 s); mean captured intensity window 0.9997, pixelated 0.9999
+  epoch   1  loss 0.062658
+  epoch   2  loss 0.055867
+  epoch   3  loss 0.056421
+  epoch   4  loss 0.059996
+  epoch   5  loss 0.058143
+  epoch   6  loss 0.055848
+  epoch   7  loss 0.053653
+  epoch   8  loss 0.052136
+  epoch   9  loss 0.049811  dC [A] [[  0.     0.     0.  ] [ -0.99  -1.77  -1.36] [-12.77  -1.28  -3.13]]
+  epoch  10  loss 0.047263  dC [A] [[  0.     0.     0.  ] [  1.84  -2.31  -0.66] [-28.78  -1.35  -1.16]]
+  epoch  11  loss 0.042811  dC [A] [[  0.     0.     0.  ] [ 13.95  -1.72  -1.18] [-51.52  -1.97  -0.77]]
+  epoch  12  loss 0.038763  dC [A] [[  0.     0.     0.  ] [ 12.86  -0.92  -1.09] [-52.87  -1.94  -0.96]]
+  epoch  13  loss 0.036224  dC [A] [[  0.     0.     0.  ] [ 10.25  -2.12  -1.33] [-55.93  -1.57  -1.01]]
+  epoch  14  loss 0.034149  dC [A] [[  0.     0.     0.  ] [  8.21  -1.89  -1.03] [-57.98  -1.85  -1.17]]
+  epoch  15  loss 0.031157  dC [A] [[  0.     0.     0.  ] [  7.16  -1.32  -1.43] [-59.43  -1.98  -1.58]]
+  epoch  16  loss 0.028405  dC [A] [[  0.     0.     0.  ] [  5.09  -1.27  -1.32] [-60.77  -1.89  -1.37]]
+  epoch  17  loss 0.025585  dC [A] [[  0.     0.     0.  ] [  4.08  -1.88  -1.41] [-63.09  -1.74  -1.04]]
+  epoch  18  loss 0.022954  dC [A] [[  0.     0.     0.  ] [  2.7   -1.73  -1.46] [-63.74  -1.55  -1.2 ]]
+  epoch  19  loss 0.020379  dC [A] [[  0.     0.     0.  ] [  1.77  -1.78  -0.98] [-64.96  -1.48  -1.38]]
+  epoch  20  loss 0.017765  dC [A] [[  0.     0.     0.  ] [  0.79  -1.71  -1.21] [-65.54  -1.59  -0.96]]
+  epoch  21  loss 0.015324  dC [A] [[  0.     0.     0.  ] [  0.36  -1.58  -1.18] [-65.96  -1.54  -1.18]]
+  epoch  22  loss 0.013070  dC [A] [[  0.     0.     0.  ] [  0.15  -1.59  -1.08] [-66.6   -1.51  -1.13]]
+  epoch  23  loss 0.010864  dC [A] [[  0.     0.     0.  ] [ -0.37  -1.78  -1.13] [-66.83  -1.6   -1.2 ]]
+  epoch  24  loss 0.009174  dC [A] [[  0.     0.     0.  ] [ -0.41  -1.75  -1.32] [-67.13  -1.59  -1.04]]
+  epoch  25  loss 0.007563  dC [A] [[  0.     0.     0.  ] [ -0.38  -1.49  -1.05] [-67.02  -1.67  -1.18]]
+  epoch  26  loss 0.006226  dC [A] [[  0.     0.     0.  ] [ -0.55  -1.53  -1.17] [-67.01  -1.49  -1.15]]
+  epoch  27  loss 0.005149  dC [A] [[  0.     0.     0.  ] [ -0.63  -1.46  -1.09] [-67.28  -1.64  -1.05]]
+  epoch  28  loss 0.004235  dC [A] [[  0.     0.     0.  ] [ -0.58  -1.54  -1.17] [-67.17  -1.48  -1.09]]
+  epoch  29  loss 0.003580  dC [A] [[  0.     0.     0.  ] [ -0.68  -1.46  -1.08] [-67.2   -1.59  -1.06]]
+  epoch  30  loss 0.003016  dC [A] [[  0.     0.     0.  ] [ -0.66  -1.54  -1.17] [-67.12  -1.52  -1.07]]
+  epoch  31  loss 0.002541  dC [A] [[  0.     0.     0.  ] [ -0.66  -1.5   -1.14] [-67.09  -1.57  -1.04]]
+  epoch  32  loss 0.002156  dC [A] [[  0.     0.     0.  ] [ -0.59  -1.5   -1.1 ] [-67.19  -1.55  -1.06]]
+  epoch  33  loss 0.001858  dC [A] [[  0.     0.     0.  ] [ -0.58  -1.52  -1.08] [-67.19  -1.58  -1.12]]
+  epoch  34  loss 0.001630  dC [A] [[  0.     0.     0.  ] [ -0.59  -1.52  -1.16] [-67.14  -1.55  -1.11]]
+  epoch  35  loss 0.001449  dC [A] [[  0.     0.     0.  ] [ -0.61  -1.46  -1.08] [-67.08  -1.52  -1.09]]
+  epoch  36  loss 0.001303  dC [A] [[  0.     0.     0.  ] [ -0.58  -1.53  -1.09] [-67.14  -1.53  -1.1 ]]
+  epoch  37  loss 0.001200  dC [A] [[  0.     0.     0.  ] [ -0.57  -1.51  -1.11] [-67.14  -1.52  -1.09]]
+  epoch  38  loss 0.001124  dC [A] [[  0.     0.     0.  ] [ -0.6   -1.5   -1.15] [-67.13  -1.53  -1.11]]
+  epoch  39  loss 0.001083  dC [A] [[  0.     0.     0.  ] [ -0.55  -1.51  -1.13] [-67.11  -1.51  -1.11]]
+  epoch  40  loss 0.001072  dC [A] [[  0.     0.     0.  ] [ -0.55  -1.48  -1.11] [-67.09  -1.54  -1.09]]
+[smatrix_window_noiseless_s0] 40 epochs 5624 s: train loss 7.575e-04, held-out 2.118e-02; C10 [-166.7, -100.55, -100.39] C12a [0.0, -1.48, -1.54] C12b [0.0, -1.11, -1.09]
+[smatrix_window_noiseless_s0] 5 lateral features (threshold 0.0324); depths [112.8, 112.2, 115.7, 1.0, 1.0] A; focus-curve layers [114.0] A
+
+real	94m10.076s
+user	94m6.586s
+sys	0m5.549s

@@ -1,0 +1,38 @@
+{
+ "quantem_window_noiseless_d1_F_smatrix_trained_call_s0_sfQ": {
+  "all": 0.003317356329527091,
+  "n_all": 2809,
+  "smatrix_train": 0.003330442627219947,
+  "n_smatrix_train": 2528,
+  "smatrix_heldout": 0.003199727194460395,
+  "n_smatrix_heldout": 281,
+  "quantem_loss_check": 9.334329244546424,
+  "final_loss_reported": 9.819826364517212,
+  "smatrix_run": "smatrix_window_noiseless_s0_sf80_single_d1_joint"
+ },
+ "quantem_window_noiseless_d1_E_smatrix_trained_call_s0_sfallQ": {
+  "all": 0.003818634019393488,
+  "n_all": 2809,
+  "quantem_loss_check": 10.74244775225489,
+  "final_loss_reported": 11.344353285702793,
+  "smatrix_run": "smatrix_window_noiseless_s0_sfall_single_d1_joint"
+ },
+ "quantem_window_noiseless_d1_F_smatrix_trained_call_s0_sfallQ": {
+  "all": 0.003672093967933171,
+  "n_all": 2809,
+  "quantem_loss_check": 10.33082812177876,
+  "final_loss_reported": 10.899380467154764,
+  "smatrix_run": "smatrix_window_noiseless_s0_sfall_single_d1_joint"
+ },
+ "quantem_window_noiseless_d1_A_nominal_trained_call_s0_sfQ": {
+  "all": 0.025803092976949726,
+  "n_all": 2809,
+  "smatrix_train": 0.025831125931811954,
+  "n_smatrix_train": 2528,
+  "smatrix_heldout": 0.025551114365323795,
+  "n_smatrix_heldout": 281,
+  "quantem_loss_check": 72.49768121542138,
+  "final_loss_reported": 74.95155976035379,
+  "smatrix_run": "smatrix_window_noiseless_s0_sf80_single_d1_joint"
+ }
+}
