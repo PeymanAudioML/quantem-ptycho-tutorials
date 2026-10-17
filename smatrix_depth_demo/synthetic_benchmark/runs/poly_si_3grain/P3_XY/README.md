@@ -40,8 +40,25 @@ Report section 6.
 
 ## Defocus datasets and starting points
 
-Every QuantEM run trains on **dataset 1 only (one defocus)**. For QuantEM, "3-focus" or "1-focus" means which S-matrix
-fit its starting point came from. Name keys: `single_d1` = one defocus (otherwise all three); `_joint` = probe fitted
+| dataset | nominal C10 | true C10 / C12a / C12b (Å) | patterns | used by |
+|---|---|---|---|---|
+| 0 | −166.7 Å | −166.7 / 0 / 0 (reference, exact) | 2809 | 3-focus S-matrix fit only |
+| **1** | **−100.0 Å** | **−88.0 / 6.0 / −4.0** | 2809 | 3-focus S-matrix fit, all 1-focus S-matrix fits, **every QuantEM run** |
+| 2 | −33.3 Å | −43.3 / −3.0 / 5.0 | 2809 | 3-focus S-matrix fit only |
+
+Source: `configs/poly_si_3grain.yaml` (`defocus.nominal_C10`, `perturbations` = true − nominal).
+
+**The three defocus datasets are used only by the S-matrix fit `full80`.** Every QuantEM run (`_d1_` in the name;
+`dataset = 1` in its `summary.json`) reconstructs from the **dataset 1 patterns alone** (2809; 2528 trained + 281 held
+out in `_val0.1`). In `run_benchmark.py quantem()` only `def{--dataset}` is loaded, and every `forward_check.make_pt`
+call uses it. From the S-matrix run, QuantEM reads only saved results (`summary.json`, `arrays.npz`): dataset 1's probe
+coefficients and beams, the depth candidates and (arm E) the projected S-matrix object. So "3-focus" or "1-focus" below
+means which S-matrix fit the starting point came from, not what QuantEM trains on. QuantEM probe starts: `nominal` =
+C10 −100 Å, no astigmatism (12 Å off); `smatrix` from `full80` = C10 −87.91, C12a 6.07, C12b −4.09 Å (within 0.1 Å);
+`smatrix` from the 1-focus joint fits ≈ nominal (C10 −100.0). Arm A `grid35` takes only its slice count (35) from the
+three-focus S-informed grid, to match arms C/D/E; nothing else from the S-matrix fit reaches it.
+
+Name keys: `single_d1` = one defocus (otherwise all three); `_joint` = probe fitted
 with S (otherwise fixed). For QuantEM, `nominal`/`smatrix` = where the probe starts and `trained`/`fixed` = whether
 QuantEM updates it; arms E and F start from the S-matrix object.
 
@@ -49,17 +66,20 @@ QuantEM updates it; arms E and F start from the S-matrix object.
 
 | run | defocus datasets | probe |
 |---|---|---|
-| `smatrix_..._s0_full80` | 3 (8427 patterns) | joint: dataset 0 is the fixed reference; datasets 1 and 2 learn C10, C12a, C12b. Ends within 0.1 Å of the truth |
-| `smatrix_..._full80_single_d1` | 1 | fixed (nominal) |
-| `smatrix_..._sf80_single_d1` | 1 | fixed (nominal), 10 % held out |
-| `smatrix_..._sf80_single_d1_joint` | 1 | joint, 10 % held out; probe stayed at nominal (C10 −100.04 vs truth −88) |
-| `smatrix_..._sfall_single_d1_joint` | 1 | joint, all patterns; probe stayed at nominal |
+| `smatrix_..._s0_full80` | 3: datasets 0, 1, 2 (8427 patterns) | joint: dataset 0 is the fixed reference; datasets 1 and 2 learn C10, C12a, C12b. Dataset 1 → −87.91 / 6.07 / −4.09, dataset 2 → −44.04 / −2.92 / 4.84 Å |
+| `smatrix_..._full80_single_d1` | 1: dataset 1 | fixed (nominal) |
+| `smatrix_..._sf80_single_d1` | 1: dataset 1 | fixed (nominal), 10 % held out |
+| `smatrix_..._sf80_single_d1_joint` | 1: dataset 1 | joint, 10 % held out; probe stayed at nominal (C10 −100.04 vs truth −88) |
+| `smatrix_..._sfall_single_d1_joint` | 1: dataset 1 | joint, all patterns; probe stayed at nominal (C10 −100.01) |
 
 ### QuantEM runs
 
+All QuantEM runs train on dataset 1 (C10 −100 Å nominal, −88 Å true).
+
 | run | S-matrix source | object start | probe start → in QuantEM |
 |---|---|---|---|
-| `A_nominal_trained_*_pure`, `A_*_grid35` | none | flat | nominal → trained |
+| `A_nominal_trained_*_pure` | none | flat | nominal → trained |
+| `A_nominal_trained_*_grid35` | none (slice count 35 matched to the 3-focus grid) | flat | nominal → trained |
 | `C_nominal_trained_*_grid35` | 3-focus | flat (S only sets the slices) | nominal → trained |
 | `D_nominal_trained_*_grid35` | 3-focus | seeded candidate spots | nominal → trained |
 | `E_nominal_trained_*_grid35` (+`_val0.1`) | 3-focus | S-matrix object | nominal → trained |
