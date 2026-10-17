@@ -385,6 +385,10 @@ def quantem(cfg, a, log=print):
     grid_label = "uniform" if a.single_dataset else "S-informed"
     log(f"QuantEM: dataset {qd} ({a.variant}, {a.noise}), object {shape} at {dr_q:.3f} A, {n} planes; candidates "
         f"{len(cands)}/{len(cands_all)} ({a.candidates}); {grid_label} slabs {np.round(g_s.slab_thicknesses, 1).tolist()} A")
+    n_pat = len(tmp.dset.scan_positions_px)
+    val_idx = fc.quantem_val_indices(n_pat, a.val_ratio) if a.val_ratio > 0 else np.zeros(0, int)
+    if a.val_ratio > 0:
+        log(f"QuantEM held-out patterns: {len(val_idx)}/{n_pat} (grid, every {round(1 / a.val_ratio)}th)")
     runs = []
     for arm in a.arms:
         slices, informed = ARMS[arm]
@@ -393,6 +397,8 @@ def quantem(cfg, a, log=print):
             init, trained = PROBE_MODES[pm]
             for seed in a.seeds:
                 tag = f"quantem_{a.variant}_{a.noise}_d{qd}_{arm}_{pm}_c{a.candidates}_s{seed}" + (f"_{a.tag}" if a.tag else "")
+                if a.val_ratio > 0:
+                    tag += f"_val{a.val_ratio:g}"
                 if a.single_dataset:
                     tag += "_single"
                 out = os.path.join(bench.HERE, "runs", cfg["name"], a.specimen, tag)
@@ -409,6 +415,8 @@ def quantem(cfg, a, log=print):
                         raise SystemExit("arms E/F need an S-matrix run (not --single-dataset)")
                     base, init_info = smatrix_object_init(cfg, a, grid, shape, p0.min(), T)
                     subset = smatrix_training_patterns(cfg, a, d0, tmp, origin, dr_q)
+                    if len(val_idx):                      # never score the scale on QuantEM's held-out patterns
+                        subset = np.setdiff1d(np.arange(n_pat) if subset is None else subset, val_idx)
                     trial = {}
                     for sc in E_SCALES + E_SCALES_EXTRA:  # scale from the data: QuantEM loss of the initial object
                         if sc in E_SCALES_EXTRA and min(trial, key=trial.get) != max(trial):
@@ -419,13 +427,15 @@ def quantem(cfg, a, log=print):
                                                subset=subset)["quantem_loss"]
                         del ptt
                     best = min(trial, key=trial.get)
-                    init_info.update(scale_patterns="S-matrix training positions only" if subset is not None else
-                                     "all patterns", n_scale_patterns=None if subset is None else len(subset))
+                    init_info.update(scale_patterns="all patterns" if subset is None else
+                                     "S-matrix training positions, minus QuantEM held-out" if len(val_idx) else
+                                     "S-matrix training positions only", n_scale_patterns=None if subset is None else len(subset))
                     phi = phi + best * base
                     init_info.update(scale=best, scale_losses={str(k): v for k, v in trial.items()})
                     log(f"arm {arm}: S-matrix object init, loss by scale {({k: round(v, 3) for k, v in trial.items()})}; "
                         f"scale {best}")
-                pt = fc.make_pt(pdset, d0, qe.to_quantem(phi.astype(np.float32), grid), prb, a.qdevice)
+                pt = fc.make_pt(pdset, d0, qe.to_quantem(phi.astype(np.float32), grid), prb, a.qdevice,
+                                val_ratio=a.val_ratio)
                 p_init = np.asarray(pt.probe)[0].copy()
                 transfer = None if a.single_dataset else probe_transfer_check(setup, p_init, dr_q, ref,
                                                 smatrix_probe_beams if init == "smatrix" else
@@ -446,10 +456,12 @@ def quantem(cfg, a, log=print):
                 dt = time.time() - t0
                 obj = pt.obj_model.obj.detach().cpu().numpy()
                 losses = np.asarray(pt.iter_losses, float)
+                val_losses = np.asarray(pt.val_iter_losses, float)
                 probe = np.asarray(pt.probe)[0]
                 np.savez_compressed(os.path.join(out, "quantem.npz"), object_potential=obj.astype(np.float32),
                                     initial_potential=phi.astype(np.float32), slice_boundaries=grid.boundaries,
-                                    probe=probe.astype(np.complex64), initial_probe=p_init.astype(np.complex64), loss=losses)
+                                    probe=probe.astype(np.complex64), initial_probe=p_init.astype(np.complex64), loss=losses,
+                                    val_loss=val_losses, val_indices=val_idx)
                 tail = losses[-max(5, len(losses) // 10):]
                 summ = dict(stage="quantem", specimen=a.specimen, arm=arm, slices=slices, informed_potential=informed,
                             object_init=init_info, probe_transfer=transfer,
@@ -460,6 +472,11 @@ def quantem(cfg, a, log=print):
                             batch=a.qbatch, planes=grid.num_slices, slice_boundaries=grid.boundaries.tolist(),
                             object_shape=list(shape), dr_quantem=dr_q, first_scan_pixel=p0.tolist(), origin_A=list(origin),
                             final_loss=float(losses[-1]), loss_history=losses.tolist(),
+                            val_ratio=a.val_ratio, val_mode="grid" if a.val_ratio > 0 else None, n_val=len(val_idx),
+                            n_train=n_pat - len(val_idx),
+                            final_val_loss=float(val_losses[-1]) if len(val_losses) else None,
+                            best_val_iter=int(val_losses.argmin()) + 1 if len(val_losses) else None,
+                            val_loss_history=val_losses.tolist(),
                             converged_rel_change_last10pct=float((tail.max() - tail.min()) / max(abs(tail.mean()), 1e-30)),
                             time_s=dt, smatrix_run=None if a.single_dataset else a.smatrix_run,
                             single_dataset=a.single_dataset, config=cfg["_path"], config_sha256=cfg["_sha256"],
@@ -471,7 +488,9 @@ def quantem(cfg, a, log=print):
                 os.makedirs(dst, exist_ok=True)
                 shutil.copy(os.path.join(out, "summary.json"), dst)
                 log(f"[{tag}] {grid.num_slices} planes, loss {losses[0]:.4g} -> {losses[-1]:.4g} "
-                    f"(last-10% change {summ['converged_rel_change_last10pct']:.1e}), {dt:.0f} s")
+                    f"(last-10% change {summ['converged_rel_change_last10pct']:.1e}), {dt:.0f} s"
+                    + (f"; held-out {val_losses[-1]:.4g} (best at iteration {summ['best_val_iter']})"
+                       if len(val_losses) else ""))
                 runs.append(out)
     return runs
 
@@ -606,6 +625,8 @@ def main():
     q.add_argument("--probe-lr", type=float, default=1e-4)
     q.add_argument("--probe-warmup", type=int, default=40, help="object-only iterations before the probe is trained")
     q.add_argument("--qbatch", type=int, default=64)
+    q.add_argument("--val-ratio", type=float, default=0.0,
+                   help="QuantEM held-out fraction (grid: every k-th pattern, k = 1/ratio); adds _val<ratio> to the run name")
     q.add_argument("--dz-max", type=float, default=None)
     q.add_argument("--dz-min", type=float, default=None)
     q.add_argument("--extra-slices", type=float, default=2.0)
@@ -620,6 +641,8 @@ def main():
     if a.single_dataset and a.stage == "quantem":
         if a.arms != ["A"] or any(probe not in ("nominal_fixed", "nominal_trained") for probe in a.probes):
             ap.error("single-dataset QuantEM requires --arms A and nominal_fixed/nominal_trained probes (no priors)")
+    if not 0 <= a.val_ratio <= 0.5:
+        ap.error("--val-ratio must be in [0, 0.5]")
     if a.num_slices is not None:
         if a.stage != "quantem" or a.num_slices < 1:
             ap.error("--num-slices must be positive and requires quantem")

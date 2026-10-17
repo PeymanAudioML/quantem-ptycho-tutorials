@@ -33,6 +33,7 @@ def main():
     ap.add_argument("--runs", nargs="+", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--labels", nargs="+", default=None, help="one label per run (default: the arm description)")
+    ap.add_argument("--title", default="uniform vs S-matrix-informed slices", help="comparison name for titles")
     ap.add_argument("--depths", type=lambda s: [float(v) for v in s.split(",")], default=[25, 60, 100, 140, 175])
     a = ap.parse_args()
     cfg = bench.load_config(a.config)
@@ -79,8 +80,9 @@ def main():
         ax[1, j].set_xticks(x, names), ax[1, j].set_title(title), ax[1, j].axhline(0, color="k", lw=0.8)
         for xi, vi in zip(x, v):
             ax[1, j].text(xi, vi, f"{vi:.3f}", ha="center", va="bottom" if vi >= 0 else "top", fontsize=8)
-    fig.suptitle(f"{a.specimen}: QuantEM, uniform vs S-matrix-informed slices (dataset {R[0]['s']['dataset']}, "
-                 f"{R[0]['s']['iters']} iters, probe {R[0]['s']['probe_mode']})", fontsize=10)
+    probes = ", ".join(dict.fromkeys(r["s"]["probe_mode"] for r in R))
+    fig.suptitle(f"{a.specimen}: QuantEM, {a.title} (dataset {R[0]['s']['dataset']}, "
+                 f"{R[0]['s']['iters']} iters, probe {probes})", fontsize=10)
     fig.tight_layout()
     fig.savefig(os.path.join(a.out, "compare_metrics.png"), dpi=90)
     plt.close(fig)
@@ -114,8 +116,8 @@ def main():
     fig.savefig(os.path.join(a.out, "compare_slices.png"), dpi=90)
     plt.close(fig)
 
-    L = [f"# QuantEM: uniform vs S-matrix-informed slices, {a.specimen}", "",
-         f"Dataset {R[0]['s']['dataset']}, {R[0]['s']['iters']} iterations, probe {R[0]['s']['probe_mode']}. "
+    L = [f"# QuantEM: {a.title}, {a.specimen}", "",
+         f"Dataset {R[0]['s']['dataset']}, {R[0]['s']['iters']} iterations, probe {probes}. "
          "Depth selectivity = mean slab corr (vs own true slab) − mean corr vs the whole projection; > 0 means the "
          "slices carry depth information.", "",
          "| run | planes | final loss | projected corr | slope | NRMSE | mean slab corr | mean proj corr | depth selectivity | "

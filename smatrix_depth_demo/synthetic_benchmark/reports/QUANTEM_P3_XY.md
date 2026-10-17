@@ -12,6 +12,12 @@ expected: the three grains of P3_XY are columns through the full thickness. An S
 dataset as QuantEM (section 5) keeps a good lateral image (corr 0.934) but cannot fit the probe. It also invents two
 false depth layers, so the S-matrix's probe and depth accuracy depend on having three defocus datasets.
 
+**Probe handoff (section 6).** Handing QuantEM the three-focus S-matrix *probe* as well as its object gives the best
+run so far (E-Sf: probe kept fixed, projected corr 0.972, loss 8.27, probe error 0.004 rad). The gain over the
+nominal-probe E is mostly in loss and speed (iteration 40: 12.6 vs 38.6); the projected image barely changes
+(0.9713 → 0.9721). Training the probe in QuantEM from the S-matrix start makes the probe worse (0.004 → 0.063 rad).
+With 10 % of the patterns held out (section 6.1) the S-matrix probe still lowers the held-out loss by 8 %.
+
 ## 1. Data and specimen
 
 | | |
@@ -228,7 +234,72 @@ grid carries no depth information either.
 So the S-matrix's probe accuracy and its trustworthy depth output both come from the three defocus settings, not
 from the S-matrix model alone.
 
-## 6. Limitations
+## 6. Probe handoff: S-matrix object AND probe into QuantEM
+
+All QuantEM runs above start from the nominal probe (0.282 rad from the truth). Here arm E is repeated with the
+dataset-1 probe of `full80` (C10 −87.91 Å, i.e. within 0.1 Å of the truth) as QuantEM's initial probe, either trained
+from iteration 41 as before (`smatrix_trained`) or never updated (`smatrix_fixed`). Everything else is unchanged:
+35 S-informed slabs, 200 iterations, same learning rates, object start scale picked by forward loss (2.5 again;
+initial loss 173 vs 195 with the nominal probe). The probe survives the transfer into QuantEM's pixelated model with
+0.0026 rad RMS phase difference (`probe_transfer` in `summary.json`; no ground truth used).
+
+Comparison: `runs/poly_si_3grain/P3_XY/compare_probe_handoff/` (`COMPARE.md`, `compare_metrics.png`,
+`compare_slices.png`).
+
+| run | final loss | loss at it. 40 | projected corr / slope | NRMSE | mean slab corr | depth profile corr | probe RMS start → end (rad) | time |
+|---|---|---|---|---|---|---|---|---|
+| E-nom: nominal probe, trained (section 3) | 9.32 | 38.6 | 0.9713 / 0.945 | 0.24 | 0.671 | 0.10 | 0.282 → 0.038 | 56 min |
+| E-St: S-matrix probe, trained | **8.18** | 12.6 | 0.9716 / 0.949 | 0.24 | **0.711** | −0.06 | 0.004 → 0.063 | 25 min |
+| E-Sf: S-matrix probe, fixed | 8.27 | 12.6 | **0.9721 / 0.950** | **0.23** | 0.705 | −0.06 | 0.004 → **0.004** | 25 min |
+
+(The 56 min of E-nom is not caused by the probe: its held-out rerun below, same settings, took 23 min.)
+
+Findings:
+
+1. **The accurate probe makes QuantEM fit the data faster and a little better.** With the nominal probe, E sits at a
+   loss plateau of ~38 until the probe starts training at iteration 41. With the S-matrix probe there is no plateau:
+   the loss is ~12 from iteration 10 on and ends 11–12 % lower.
+2. **The image hardly changes.** Projected correlation 0.9713 → 0.9721, NRMSE 0.24 → 0.23. The S-matrix *object*
+   start (section 4, item 4) is what moves QuantEM from ~0.90 to ~0.97; the probe adds the last decimal.
+3. **Per-slab correlation rises (0.671 → 0.71), but not depth information.** The slabs' correlation with the whole
+   projection rises by the same amount (0.758 → 0.79), so depth selectivity stays at −0.088 and the depth profile
+   correlation stays near zero. The slices are cleaner copies of the projection, as expected for columnar grains.
+4. **Do not train the probe in QuantEM on one defocus.** Starting at 0.004 rad, the trained probe drifts to
+   0.063 rad, worse than where the nominal start ends (0.038 rad). Its amplitude also shifts sideways
+   (`plots/probe.png`), a probe/object translation that one dataset cannot pin down; the reported RMS has tilt
+   removed, so the 0.063 rad is a real phase error beyond that shift. Keeping the S-matrix probe fixed costs only
+   1 % in loss.
+5. **Not converged.** Both new runs still change by ~6 % over the last 10 % of iterations (E-nom 3 %). The loss
+   also dips to ~7.5 in the first few object-only iterations before rising to ~12, so a lower object learning rate
+   or more iterations may do better.
+
+Run directories: `runs/poly_si_3grain/P3_XY/quantem_window_noiseless_d1_E_smatrix_{trained,fixed}_call_s0_grid35`.
+
+### 6.1 Held-out check (`--val-ratio 0.1`)
+
+The losses above are training losses on all 2809 patterns. To check that the lower loss is not overfitting, the three
+runs were repeated with QuantEM's held-out split: every 10th pattern (281) is never trained on, and is also left out
+when the object start scale is chosen. Everything else is identical (`*_grid35_val0.1`). Comparison:
+`runs/poly_si_3grain/P3_XY/compare_heldout/` (`COMPARE.md`, `compare_metrics.png`, `compare_slices.png`,
+`train_vs_heldout_loss.png`).
+
+| run | train loss (end) | held-out loss (end) | best held-out (iteration) | held-out at it. 40 | projected corr | probe RMS end (rad) |
+|---|---|---|---|---|---|---|
+| E-nom: nominal probe, trained | 9.30 | 10.85 | 10.31 (156) | 42.1 | 0.9709 | 0.039 |
+| E-St: S-matrix probe, trained | 8.54 | **9.96** | **9.40 (189)** | 13.4 | 0.9715 | 0.063 |
+| E-Sf: S-matrix probe, fixed | **8.51** | 10.00 | 9.65 (172) | 13.4 | **0.9719** | **0.004** |
+
+1. **The gain holds on unseen patterns.** The S-matrix probe lowers the held-out loss by 8 % at the end (10.0 vs
+   10.85) and 6–9 % at the best iteration. The held-out/training ratio is the same for all three (1.17), so the
+   accurate probe does not cause extra overfitting.
+2. **Trained vs fixed S-matrix probe cannot be separated.** Their held-out losses differ by 0.4 % at the end, while
+   the held-out curve itself fluctuates by about ±5 % from one iteration to the next. Fixed keeps the exact probe, so
+   it stays the recommended set-up.
+3. **Held-out loss is still falling slowly** (best at iterations 156–189 of 200); there is no sign of the held-out
+   loss turning up, so more iterations are unlikely to overfit.
+4. **Holding out 10 % changes the object very little:** projected corr within 0.0004 of the all-pattern runs.
+
+## 7. Limitations
 
 - One defocus dataset for QuantEM vs three for the main S-matrix fit; section 5 gives the one-dataset S-matrix for
   reference.
@@ -238,7 +309,7 @@ from the S-matrix model alone.
 - The useful test of S-informed *depth* priors is `P3_XYZ` (grains at z = 40 / 110 / 170 Å with tilted boundaries).
   It needs an S-matrix fit first (about 3 h), then the QuantEM arms (about 2 h).
 
-## 7. Reproduce
+## 8. Reproduce
 
 ```bash
 cd smatrix_depth_demo/synthetic_benchmark
@@ -251,6 +322,19 @@ $PY compare_quantem.py --config $CFG --specimen P3_XY --out results/quantem_comp
 ```
 
 Run names: `quantem_window_noiseless_d1_<arm>_nominal_trained_call_s0_<tag>`.
+
+Probe handoff (section 6):
+
+```bash
+$PY run_benchmark.py quantem --config $CFG --specimen P3_XY --smatrix-run $SM --arms E --probes smatrix_trained,smatrix_fixed --iters 200 --device cuda --tag grid35
+for m in trained fixed; do $PY plot_quantem.py --config $CFG --specimen P3_XY --run quantem_window_noiseless_d1_E_smatrix_${m}_call_s0_grid35; done
+$PY compare_quantem.py --config $CFG --specimen P3_XY --out runs/poly_si_3grain/P3_XY/compare_probe_handoff \
+    --title "probe handoff from the three-focus S-matrix (arm E)" \
+    --runs quantem_window_noiseless_d1_E_{nominal_trained,smatrix_trained,smatrix_fixed}_call_s0_grid35 \
+    --labels "E-nom: nominal probe, trained" "E-St: S-matrix probe, trained" "E-Sf: S-matrix probe, fixed"
+# held-out check (section 6.1): same with --val-ratio 0.1 (runs *_grid35_val0.1), compared into compare_heldout/
+$PY run_benchmark.py quantem --config $CFG --specimen P3_XY --smatrix-run $SM --arms E --probes nominal_trained,smatrix_trained,smatrix_fixed --val-ratio 0.1 --iters 200 --device cuda --tag grid35
+```
 
 Single-dataset S-matrix (section 5):
 

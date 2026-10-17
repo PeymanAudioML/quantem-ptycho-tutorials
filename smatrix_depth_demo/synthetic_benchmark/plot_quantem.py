@@ -149,7 +149,7 @@ def main():
     import zarr
     pt_real = zarr.open_array(os.path.join(gt, f"probe_d{s['dataset']}.zarr", "array0"), mode="r")[...]
     fig, ax = plt.subplots(2, 3, figsize=(15, 9))
-    for j, (p, t) in enumerate(((pi, f"initial (nominal): overlap {m_i[0]:.4f}, RMS {m_i[1]:.3f} rad"),
+    for j, (p, t) in enumerate(((pi, f"initial ({s.get('probe_init', 'nominal')}): overlap {m_i[0]:.4f}, RMS {m_i[1]:.3f} rad"),
                                 (pf, f"final (QuantEM): overlap {m_f[0]:.4f}, RMS {m_f[1]:.3f} rad"),
                                 (pt_real, "truth"))):
         a_ = np.abs(p)

@@ -43,14 +43,23 @@ def setup_dataset(d0, lam):
     return pdset
 
 
-def make_pt(pdset, d0, obj_model, probe_array, device):
+def make_pt(pdset, d0, obj_model, probe_array, device, val_ratio=0.0):
+    """QuantEM Ptychography; val_ratio > 0 holds out every k-th pattern (QuantEM 'grid' split, k = 1/val_ratio): those
+    patterns are never trained on and give a validation loss each iteration (pt.val_iter_losses).  'grid' because the
+    split is rebuilt on every reconstruct() call and a 'random' split would change between calls."""
     from quantem.diffractive_imaging import ProbePixelated, DetectorPixelated, Ptychography
     probe = ProbePixelated.from_array(np.asarray(probe_array, np.complex64)[None], device=device,
                                       probe_params={"energy": d0["energy"], "semiangle_cutoff": d0["alpha_mrad"]})
     pt = Ptychography.from_models(dset=pdset, obj_model=obj_model, probe_model=probe, detector_model=DetectorPixelated(),
                                   device=device, rng=0)
-    pt.preprocess(obj_padding_px=(PAD, PAD), batch_size=64)
+    pt.preprocess(obj_padding_px=(PAD, PAD), batch_size=64, val_ratio=val_ratio, val_mode="grid")
     return pt
+
+
+def quantem_val_indices(num, val_ratio):
+    """Pattern indices QuantEM holds out for a 'grid' split of num patterns (its own SimpleBatcher, so they match)."""
+    from quantem.diffractive_imaging.ptycho_utils import SimpleBatcher
+    return np.asarray(SimpleBatcher(num, None, val_ratio=val_ratio, val_mode="grid").val_indices, dtype=int)
 
 
 @torch.no_grad()

@@ -85,12 +85,12 @@ def test_standalone_quantem_never_loads_smatrix(monkeypatch, tmp_path):
         coefficients.append(nominal.copy())
         return np.ones((4, 4), np.complex64)
 
-    def make_pt(data, metadata, obj, initial_probe, device):
+    def make_pt(data, metadata, obj, initial_probe, device, val_ratio=0.0):
         return SimpleNamespace(
             obj_shape_full=obj.shape, sampling=np.array([0.2, 0.2]),
             dset=SimpleNamespace(scan_positions_px=torch.zeros((1, 2))),
             probe=initial_probe[None], obj_model=SimpleNamespace(obj=torch.as_tensor(obj)),
-            iter_losses=[2.0, 1.0], reconstruct=lambda **kwargs: updates.append(kwargs))
+            iter_losses=[2.0, 1.0], val_iter_losses=[], reconstruct=lambda **kwargs: updates.append(kwargs))
 
     monkeypatch.setattr(benchmark.bench, "HERE", str(tmp_path))
     monkeypatch.setattr(benchmark.bench, "make_setup", lambda cfg: setup)
@@ -128,3 +128,18 @@ def test_single_dataset_smatrix_keeps_geometry_guard():
     nominal[0, 0] = -100.0
     with pytest.raises(ValueError, match="measurements/unknowns"):
         benchmark.sj.check_geometry(setup, positions, nominal, 200.0, abtem=True, strict=True, log=lambda text: None)
+
+
+def test_quantem_val_indices_match_quantem_split():
+    """The runner's held-out set is the one QuantEM's grid batcher holds out, whatever its rng (stable across the
+    warm-up and main reconstruct() calls), and it is disjoint from the training patterns."""
+    pytest.importorskip("quantem")
+    from quantem.diffractive_imaging.ptycho_utils import SimpleBatcher
+    import forward_check
+    val = forward_check.quantem_val_indices(2809, 0.1)
+    assert len(val) == 281 and val[0] == 0 and np.all(np.diff(val) == 10)
+    for rng in (0, 1, 123):
+        b = SimpleBatcher(2809, 64, rng=rng, val_ratio=0.1, val_mode="grid")
+        assert np.array_equal(val, b.val_indices)
+        assert len(np.intersect1d(val, b.train_indices)) == 0
+    assert len(forward_check.quantem_val_indices(2809, 0.0)) == 0
