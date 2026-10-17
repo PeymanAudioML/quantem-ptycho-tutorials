@@ -20,6 +20,11 @@ Naming: `smatrix_<detector>_<noise>_s<seed>_<tag>[_single_d<dataset>][_joint]` a
 | [`quantem_window_noiseless_d1_C_nominal_trained_call_s0_grid35`](quantem_window_noiseless_d1_C_nominal_trained_call_s0_grid35/README.md) | QuantEM arm C, S-informed slices (three-focus S), flat start |
 | [`quantem_window_noiseless_d1_D_nominal_trained_call_s0_grid35`](quantem_window_noiseless_d1_D_nominal_trained_call_s0_grid35/README.md) | QuantEM arm D, S-informed slices + seeded candidate spots (three-focus S) |
 | [`quantem_window_noiseless_d1_E_nominal_trained_call_s0_grid35`](quantem_window_noiseless_d1_E_nominal_trained_call_s0_grid35/README.md) | QuantEM arm E, S-informed slices + S-matrix object start (three-focus S) |
+| [`quantem_window_noiseless_d1_E_smatrix_trained_call_s0_grid35`](quantem_window_noiseless_d1_E_smatrix_trained_call_s0_grid35/README.md) | QuantEM arm E, three-focus S-matrix object AND probe, probe trained |
+| [`quantem_window_noiseless_d1_E_smatrix_fixed_call_s0_grid35`](quantem_window_noiseless_d1_E_smatrix_fixed_call_s0_grid35/README.md) | QuantEM arm E, three-focus S-matrix object AND probe, probe fixed |
+| [`quantem_window_noiseless_d1_E_nominal_trained_call_s0_grid35_val0.1`](quantem_window_noiseless_d1_E_nominal_trained_call_s0_grid35_val0.1/README.md) | QuantEM arm E, nominal probe trained, 10 % held-out patterns |
+| [`quantem_window_noiseless_d1_E_smatrix_trained_call_s0_grid35_val0.1`](quantem_window_noiseless_d1_E_smatrix_trained_call_s0_grid35_val0.1/README.md) | QuantEM arm E, three-focus S-matrix probe trained, 10 % held-out patterns |
+| [`quantem_window_noiseless_d1_E_smatrix_fixed_call_s0_grid35_val0.1`](quantem_window_noiseless_d1_E_smatrix_fixed_call_s0_grid35_val0.1/README.md) | QuantEM arm E, three-focus S-matrix probe fixed, 10 % held-out patterns |
 | [`quantem_window_noiseless_d1_A_nominal_trained_call_s0_sfQ`](quantem_window_noiseless_d1_A_nominal_trained_call_s0_sfQ/README.md) | Handoff Q0: flat object, nominal probe (35 uniform slices) |
 | [`quantem_window_noiseless_d1_A_smatrix_trained_call_s0_sfQ`](quantem_window_noiseless_d1_A_smatrix_trained_call_s0_sfQ/README.md) | Handoff Q2: flat object, single-focus joint S-matrix probe |
 | [`quantem_window_noiseless_d1_F_nominal_trained_call_s0_sfQ`](quantem_window_noiseless_d1_F_nominal_trained_call_s0_sfQ/README.md) | Handoff Q1: single-focus S-matrix object, nominal probe |
@@ -27,9 +32,53 @@ Naming: `smatrix_<detector>_<noise>_s<seed>_<tag>[_single_d<dataset>][_joint]` a
 | [`quantem_window_noiseless_d1_E_smatrix_trained_call_s0_sfallQ`](quantem_window_noiseless_d1_E_smatrix_trained_call_s0_sfallQ/README.md) | Handoff from the all-pattern single-focus S-matrix: arm E (S-informed slices) |
 | [`quantem_window_noiseless_d1_F_smatrix_trained_call_s0_sfallQ`](quantem_window_noiseless_d1_F_smatrix_trained_call_s0_sfallQ/README.md) | Handoff from the all-pattern single-focus S-matrix: arm F (35 uniform slices) |
 
+Comparison folder (not a run): [`compare_probe_handoff/`](compare_probe_handoff/COMPARE.md): arm E with the nominal
+probe vs the three-focus S-matrix probe (trained, fixed); `COMPARE.md`, `compare_metrics.png`, `compare_slices.png`.
+Report section 6.
+[`compare_heldout/`](compare_heldout/COMPARE.md): the same three arm-E probe set-ups with 10 % held-out patterns
+(`*_val0.1`); adds `train_vs_heldout_loss.png`.
+
+## Defocus datasets and starting points
+
+Every QuantEM run trains on **dataset 1 only (one defocus)**. For QuantEM, "3-focus" or "1-focus" means which S-matrix
+fit its starting point came from. Name keys: `single_d1` = one defocus (otherwise all three); `_joint` = probe fitted
+with S (otherwise fixed). For QuantEM, `nominal`/`smatrix` = where the probe starts and `trained`/`fixed` = whether
+QuantEM updates it; arms E and F start from the S-matrix object.
+
+### S-matrix fits
+
+| run | defocus datasets | probe |
+|---|---|---|
+| `smatrix_..._s0_full80` | 3 (8427 patterns) | joint: dataset 0 is the fixed reference; datasets 1 and 2 learn C10, C12a, C12b. Ends within 0.1 Å of the truth |
+| `smatrix_..._full80_single_d1` | 1 | fixed (nominal) |
+| `smatrix_..._sf80_single_d1` | 1 | fixed (nominal), 10 % held out |
+| `smatrix_..._sf80_single_d1_joint` | 1 | joint, 10 % held out; probe stayed at nominal (C10 −100.04 vs truth −88) |
+| `smatrix_..._sfall_single_d1_joint` | 1 | joint, all patterns; probe stayed at nominal |
+
+### QuantEM runs
+
+| run | S-matrix source | object start | probe start → in QuantEM |
+|---|---|---|---|
+| `A_nominal_trained_*_pure`, `A_*_grid35` | none | flat | nominal → trained |
+| `C_nominal_trained_*_grid35` | 3-focus | flat (S only sets the slices) | nominal → trained |
+| `D_nominal_trained_*_grid35` | 3-focus | seeded candidate spots | nominal → trained |
+| `E_nominal_trained_*_grid35` (+`_val0.1`) | 3-focus | S-matrix object | nominal → trained |
+| `E_smatrix_trained_*_grid35` (+`_val0.1`) | 3-focus | S-matrix object | S-matrix probe → trained |
+| `E_smatrix_fixed_*_grid35` (+`_val0.1`) | 3-focus | S-matrix object | S-matrix probe → fixed |
+| `A_nominal_trained_*_sfQ` (Q0) | none | flat | nominal → trained |
+| `F_nominal_trained_*_sfQ` (Q1) | 1-focus (`sf80_single_d1_joint`) | S-matrix object | nominal → trained |
+| `A_smatrix_trained_*_sfQ` (Q2) | 1-focus (`sf80_single_d1_joint`) | flat | S-matrix probe → trained |
+| `F_smatrix_trained_*_sfQ` (Q3) | 1-focus (`sf80_single_d1_joint`) | S-matrix object | S-matrix probe → trained |
+| `E/F_smatrix_trained_*_sfallQ` | 1-focus (`sfall_single_d1_joint`) | S-matrix object | S-matrix probe → trained |
+
+Started from both the S-matrix object and the S-matrix probe: `E_smatrix_trained`, `E_smatrix_fixed` (3-focus),
+`F_smatrix_trained_*_sfQ` and `E/F_smatrix_trained_*_sfallQ` (1-focus). The probe is held fixed in QuantEM only in
+`E_smatrix_fixed_*` (and its `_val0.1` copy). With one defocus the S-matrix probe equals the nominal probe, so in the
+1-focus runs only the object start helps.
+
 ## Groups
 
-- **Three-focus S-matrix and the QuantEM arms that use it:** `smatrix_..._full80`; QuantEM `*_grid35` (A, C, D, E) and
+- **Three-focus S-matrix and the QuantEM arms that use it:** `smatrix_..._full80`; QuantEM `*_grid35` (A, C, D, E with the nominal probe; E with the S-matrix probe, trained and fixed) and
   `*_pure` (A, 25 slices). Report: `reports/QUANTEM_P3_XY.md`.
 - **Single-focus S-matrix (dataset 1 only):** `full80_single_d1` (fixed probe, first reference); `sf80_single_d1`
   (fixed) vs `sf80_single_d1_joint` (experimental joint probe), matched with a 10 % held-out split; `sfall_single_d1_joint`
