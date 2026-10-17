@@ -283,14 +283,22 @@ when the object start scale is chosen. Everything else is identical (`*_grid35_v
 `runs/poly_si_3grain/P3_XY/compare_heldout/` (`COMPARE.md`, `compare_metrics.png`, `compare_slices.png`,
 `train_vs_heldout_loss.png`).
 
+**Caveat: the held-out patterns are unseen by QuantEM, not by the S-matrix fit.** `full80` was fitted with no
+held-out split (`heldout_fraction = 0`, mask 0 of 2809 positions), so all 281 patterns QuantEM holds out were in its
+training data. The S-matrix object start (all three runs) and the S-matrix probe (E-St, E-Sf) were therefore fitted
+partly on the held-out patterns. The leak is the same in all three runs, so comparing them with each other is fair
+on equal terms; but these numbers do not show that the S-matrix start generalises to data it has not seen. A clean
+test refits `full80` with the same every-10th split (`--heldout` matched to QuantEM's grid) and reruns the three
+`_val0.1` runs (about 3 h + 70 min).
+
 | run | train loss (end) | held-out loss (end) | best held-out (iteration) | held-out at it. 40 | projected corr | probe RMS end (rad) |
 |---|---|---|---|---|---|---|
 | E-nom: nominal probe, trained | 9.30 | 10.85 | 10.31 (156) | 42.1 | 0.9709 | 0.039 |
 | E-St: S-matrix probe, trained | 8.54 | **9.96** | **9.40 (189)** | 13.4 | 0.9715 | 0.063 |
 | E-Sf: S-matrix probe, fixed | **8.51** | 10.00 | 9.65 (172) | 13.4 | **0.9719** | **0.004** |
 
-1. **The gain holds on unseen patterns.** The S-matrix probe lowers the held-out loss by 8 % at the end (10.0 vs
-   10.85) and 6–9 % at the best iteration. The held-out/training ratio is the same for all three (1.17), so the
+1. **The gain holds on patterns QuantEM did not train on** (but the S-matrix fit did; see the caveat above). The
+   S-matrix probe lowers the held-out loss by 8 % at the end (10.0 vs 10.85) and 6–9 % at the best iteration. The held-out/training ratio is the same for all three (1.17), so the
    accurate probe does not cause extra overfitting.
 2. **Trained vs fixed S-matrix probe cannot be separated.** Their held-out losses differ by 0.4 % at the end, while
    the held-out curve itself fluctuates by about ±5 % from one iteration to the next. Fixed keeps the exact probe, so
@@ -304,6 +312,8 @@ when the object start scale is chosen. Everything else is identical (`*_grid35_v
 - One defocus dataset for QuantEM vs three for the main S-matrix fit; section 5 gives the one-dataset S-matrix for
   reference.
 - One seed per arm, noiseless data, one specimen without depth structure.
+- The held-out check (6.1) holds patterns out of QuantEM only; the S-matrix fit `full80` that supplies arm E's
+  object and probe trained on them, so it is not a clean generalisation test of the S-matrix start.
 - E's scale is picked from 8 discrete values; its depth split uses the S-matrix focus curve, which on this specimen is
   nearly flat (so E is effectively "S-matrix projection spread uniformly in depth").
 - The useful test of S-informed *depth* priors is `P3_XYZ` (grains at z = 40 / 110 / 170 Å with tilted boundaries).
