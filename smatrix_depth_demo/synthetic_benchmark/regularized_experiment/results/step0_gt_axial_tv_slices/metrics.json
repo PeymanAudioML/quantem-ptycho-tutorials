@@ -1,0 +1,737 @@
+{
+ "source": "slices",
+ "atom_sigma_A": 0.35,
+ "atom_render_corr_with_abtem_projection": 0.9272183174673425,
+ "label_check_atom_agreement": 1.0,
+ "n_atoms": 31967,
+ "grain_volume_fraction": {
+  "[001]": 0.3477851321373457,
+  "[110]": 0.3659787929205247,
+  "[111]": 0.2862360749421296
+ },
+ "truth_slice_A": 2.0,
+ "pixel_A": 0.2,
+ "scan_field_A": [
+  18.400000000000002,
+  39.2
+ ],
+ "tile_A": 6.4,
+ "stride_A": 1.6,
+ "results": {
+  "100": {
+   "slab_A": 2.0,
+   "raw": {
+    "n_within": 8015968,
+    "n_boundary": 129833,
+    "mean_within": 0.012454271781029156,
+    "mean_boundary": 0.009153463878083704,
+    "ratio_means": 0.7349658044259662,
+    "auc_boundary_gt_within": 0.4092123235618063,
+    "boundary_share_of_pairs": 0.01593864127051471,
+    "boundary_share_of_tv": 0.011764051006667163,
+    "mean_within_by_grain": {
+     "[001]": 0.014478849526567448,
+     "[110]": 0.012741501556134587,
+     "[111]": 0.009618705466724662
+    },
+    "scan_field": {
+     "n_within": 1059212,
+     "n_boundary": 21404,
+     "mean_within": 0.012611909224507622,
+     "mean_boundary": 0.009304660917755347,
+     "ratio_means": 0.7377678313505787,
+     "auc_boundary_gt_within": 0.40998507767239767,
+     "boundary_share_of_pairs": 0.01980722106650281,
+     "boundary_share_of_tv": 0.014689428754174644
+    }
+   },
+   "lp0.5": {
+    "n_within": 8015968,
+    "n_boundary": 129833,
+    "mean_within": 0.01043108921257519,
+    "mean_boundary": 0.008082498553684902,
+    "ratio_means": 0.7748470355273209,
+    "auc_boundary_gt_within": 0.4067024462963961,
+    "boundary_share_of_pairs": 0.01593864127051471,
+    "boundary_share_of_tv": 0.012394488199880987,
+    "mean_within_by_grain": {
+     "[001]": 0.011720860063298096,
+     "[110]": 0.010417397152757059,
+     "[111]": 0.008878094399343285
+    },
+    "scan_field": {
+     "n_within": 1059212,
+     "n_boundary": 21404,
+     "mean_within": 0.010550728517946334,
+     "mean_boundary": 0.008223228524668762,
+     "ratio_means": 0.7793991202296037,
+     "auc_boundary_gt_within": 0.4090757468230237,
+     "boundary_share_of_pairs": 0.01980722106650281,
+     "boundary_share_of_tv": 0.015505481726871159
+    }
+   },
+   "lp1": {
+    "n_within": 8015968,
+    "n_boundary": 129833,
+    "mean_within": 0.006632651841379959,
+    "mean_boundary": 0.0056013429553637495,
+    "ratio_means": 0.8445103239729768,
+    "auc_boundary_gt_within": 0.42347972379903415,
+    "boundary_share_of_pairs": 0.01593864127051471,
+    "boundary_share_of_tv": 0.013493788680836134,
+    "mean_within_by_grain": {
+     "[001]": 0.0063337797126838,
+     "[110]": 0.006449179514069169,
+     "[111]": 0.007233019051592538
+    },
+    "scan_field": {
+     "n_within": 1059212,
+     "n_boundary": 21404,
+     "mean_within": 0.0067275320347036805,
+     "mean_boundary": 0.00565569762219657,
+     "ratio_means": 0.8406794041294638,
+     "auc_boundary_gt_within": 0.4238564917772379,
+     "boundary_share_of_pairs": 0.01980722106650281,
+     "boundary_share_of_tv": 0.01670423633322722
+    }
+   },
+   "lp2": {
+    "n_within": 8015968,
+    "n_boundary": 129833,
+    "mean_within": 0.004413575591687675,
+    "mean_boundary": 0.0035241370693634344,
+    "ratio_means": 0.7984766537137444,
+    "auc_boundary_gt_within": 0.4446622721881186,
+    "boundary_share_of_pairs": 0.01593864127051471,
+    "boundary_share_of_tv": 0.01276764272112363,
+    "mean_within_by_grain": {
+     "[001]": 0.005536395953269837,
+     "[110]": 0.0017964204548380981,
+     "[111]": 0.006418550884298986
+    },
+    "scan_field": {
+     "n_within": 1059212,
+     "n_boundary": 21404,
+     "mean_within": 0.004788879428389878,
+     "mean_boundary": 0.0034779429121749757,
+     "ratio_means": 0.7262540149907958,
+     "auc_boundary_gt_within": 0.40055898290039244,
+     "boundary_share_of_pairs": 0.01980722106650281,
+     "boundary_share_of_tv": 0.014463497035908494
+    }
+   },
+   "lp3": {
+    "n_within": 8015968,
+    "n_boundary": 129833,
+    "mean_within": 0.0041286020528655985,
+    "mean_boundary": 0.0032916220858167544,
+    "ratio_means": 0.7972727920173587,
+    "auc_boundary_gt_within": 0.4604740983032049,
+    "boundary_share_of_pairs": 0.01593864127051471,
+    "boundary_share_of_tv": 0.012748638379150747,
+    "mean_within_by_grain": {
+     "[001]": 0.0053931118567668015,
+     "[110]": 0.0013240494294201046,
+     "[111]": 0.006202501894831395
+    },
+    "scan_field": {
+     "n_within": 1059212,
+     "n_boundary": 21404,
+     "mean_within": 0.004537086471768596,
+     "mean_boundary": 0.003223169001979905,
+     "ratio_means": 0.7104050191759924,
+     "auc_boundary_gt_within": 0.41503212577088394,
+     "boundary_share_of_pairs": 0.01980722106650281,
+     "boundary_share_of_tv": 0.014152328031366903
+    }
+   },
+   "spectrum": {
+    "n_within": 97934,
+    "n_boundary": 2085,
+    "mean_within": 0.5628576874732971,
+    "mean_boundary": 0.5658050179481506,
+    "ratio_means": 1.0052363872528076,
+    "auc_boundary_gt_within": 0.5173513293266296,
+    "boundary_share_of_pairs": 0.020846039252542015,
+    "boundary_share_of_tv": 0.02095291204750538,
+    "mean_within_by_grain": {
+     "[001]": 0.605767011642456,
+     "[110]": 0.4845927357673645,
+     "[111]": 0.6003287434577942
+    }
+   }
+  },
+  "50": {
+   "slab_A": 4.0,
+   "raw": {
+    "n_within": 3839504,
+    "n_boundary": 128798,
+    "mean_within": 0.00441873102418981,
+    "mean_boundary": 0.006771111759262804,
+    "ratio_means": 1.5323656774298253,
+    "auc_boundary_gt_within": 0.6650555931380923,
+    "boundary_share_of_pairs": 0.032456703144065145,
+    "boundary_share_of_tv": 0.04889076249424032,
+    "mean_within_by_grain": {
+     "[001]": 0.0051251895094774486,
+     "[110]": 0.0009482324199535918,
+     "[111]": 0.008058182820314442
+    },
+    "scan_field": {
+     "n_within": 502877,
+     "n_boundary": 21342,
+     "mean_within": 0.004804805018655369,
+     "mean_boundary": 0.007391055470457477,
+     "ratio_means": 1.538263351324478,
+     "auc_boundary_gt_within": 0.6588303052666105,
+     "boundary_share_of_pairs": 0.04071199250694843,
+     "boundary_share_of_tv": 0.06128282801860981
+    }
+   },
+   "lp0.5": {
+    "n_within": 3839504,
+    "n_boundary": 128798,
+    "mean_within": 0.003556521656450165,
+    "mean_boundary": 0.004966129509147619,
+    "ratio_means": 1.3963445154736978,
+    "auc_boundary_gt_within": 0.6504239593394308,
+    "boundary_share_of_pairs": 0.032456703144065145,
+    "boundary_share_of_tv": 0.04474513636791539,
+    "mean_within_by_grain": {
+     "[001]": 0.003987636389105067,
+     "[110]": 0.0009540912107219977,
+     "[111]": 0.0064060498107909964
+    },
+    "scan_field": {
+     "n_within": 502877,
+     "n_boundary": 21342,
+     "mean_within": 0.003840407607926502,
+     "mean_boundary": 0.005222457360298758,
+     "ratio_means": 1.3598705901737462,
+     "auc_boundary_gt_within": 0.6414795647080873,
+     "boundary_share_of_pairs": 0.04071199250694843,
+     "boundary_share_of_tv": 0.054563626918488164
+    }
+   },
+   "lp1": {
+    "n_within": 3839504,
+    "n_boundary": 128798,
+    "mean_within": 0.0018418360754059449,
+    "mean_boundary": 0.0028413944814716973,
+    "ratio_means": 1.5426967249761614,
+    "auc_boundary_gt_within": 0.671447617858973,
+    "boundary_share_of_pairs": 0.032456703144065145,
+    "boundary_share_of_tv": 0.04920416035498013,
+    "mean_within_by_grain": {
+     "[001]": 0.0016846070038012333,
+     "[110]": 0.0009245728629470954,
+     "[111]": 0.0032235975752340383
+    },
+    "scan_field": {
+     "n_within": 502877,
+     "n_boundary": 21342,
+     "mean_within": 0.0019515121973432768,
+     "mean_boundary": 0.002848211491606959,
+     "ratio_means": 1.4594894643673857,
+     "auc_boundary_gt_within": 0.6581532016680723,
+     "boundary_share_of_pairs": 0.04071199250694843,
+     "boundary_share_of_tv": 0.058327605278705646
+    }
+   },
+   "lp2": {
+    "n_within": 3839504,
+    "n_boundary": 128798,
+    "mean_within": 0.0011714060732377785,
+    "mean_boundary": 0.0014801984306584872,
+    "ratio_means": 1.2636082947454792,
+    "auc_boundary_gt_within": 0.6918378760151556,
+    "boundary_share_of_pairs": 0.032456703144065145,
+    "boundary_share_of_tv": 0.04066463851464213,
+    "mean_within_by_grain": {
+     "[001]": 0.000516671490211885,
+     "[110]": 0.0008441057529873973,
+     "[111]": 0.0023951751031761766
+    },
+    "scan_field": {
+     "n_within": 502877,
+     "n_boundary": 21342,
+     "mean_within": 0.001250767048985837,
+     "mean_boundary": 0.0014339359156391653,
+     "ratio_means": 1.1464452287912827,
+     "auc_boundary_gt_within": 0.6874333333333333,
+     "boundary_share_of_pairs": 0.04071199250694843,
+     "boundary_share_of_tv": 0.046397444425255605
+    }
+   },
+   "lp3": {
+    "n_within": 3839504,
+    "n_boundary": 128798,
+    "mean_within": 0.0011171913287323033,
+    "mean_boundary": 0.0011606256045053962,
+    "ratio_means": 1.0388780996200342,
+    "auc_boundary_gt_within": 0.6657522938244382,
+    "boundary_share_of_pairs": 0.032456703144065145,
+    "boundary_share_of_tv": 0.03367606377486545,
+    "mean_within_by_grain": {
+     "[001]": 0.0004671784603244067,
+     "[110]": 0.0008106668826099405,
+     "[111]": 0.0023082470935191484
+    },
+    "scan_field": {
+     "n_within": 502877,
+     "n_boundary": 21342,
+     "mean_within": 0.0012035436969921676,
+     "mean_boundary": 0.0010939217043087735,
+     "ratio_means": 0.908917313964291,
+     "auc_boundary_gt_within": 0.6631875086683535,
+     "boundary_share_of_pairs": 0.04071199250694843,
+     "boundary_share_of_tv": 0.03714156164079026
+    }
+   },
+   "spectrum": {
+    "n_within": 46627,
+    "n_boundary": 2081,
+    "mean_within": 0.2947453558444977,
+    "mean_boundary": 0.5442200899124146,
+    "ratio_means": 1.8464076519012451,
+    "auc_boundary_gt_within": 0.8387978672981262,
+    "boundary_share_of_pairs": 0.04272398784593907,
+    "boundary_share_of_tv": 0.07613278925418854,
+    "mean_within_by_grain": {
+     "[001]": 0.435191810131073,
+     "[110]": 0.04155094921588898,
+     "[111]": 0.4142196774482727
+    }
+   }
+  },
+  "35": {
+   "slab_A": 5.714285714285714,
+   "raw": {
+    "n_within": 2588645,
+    "n_boundary": 127235,
+    "mean_within": 0.004026624197384012,
+    "mean_boundary": 0.006315029728242792,
+    "ratio_means": 1.5683186258964754,
+    "auc_boundary_gt_within": 0.6110882079812945,
+    "boundary_share_of_pairs": 0.046848535281382095,
+    "boundary_share_of_tv": 0.07156794153497063,
+    "mean_within_by_grain": {
+     "[001]": 0.002604304270888974,
+     "[110]": 0.0036780019929360066,
+     "[111]": 0.006221224249059403
+    },
+    "scan_field": {
+     "n_within": 336234,
+     "n_boundary": 21294,
+     "mean_within": 0.004240136626507414,
+     "mean_boundary": 0.006517629708667353,
+     "ratio_means": 1.5371272868713908,
+     "auc_boundary_gt_within": 0.6174875277073354,
+     "boundary_share_of_pairs": 0.059558971605021147,
+     "boundary_share_of_tv": 0.08871176465111762
+    }
+   },
+   "lp0.5": {
+    "n_within": 2588645,
+    "n_boundary": 127235,
+    "mean_within": 0.0032701822920183114,
+    "mean_boundary": 0.004243077138434033,
+    "ratio_means": 1.2975047748225876,
+    "auc_boundary_gt_within": 0.5886085705977129,
+    "boundary_share_of_pairs": 0.046848535281382095,
+    "boundary_share_of_tv": 0.05995062659454186,
+    "mean_within_by_grain": {
+     "[001]": 0.0022669706433149387,
+     "[110]": 0.0030956012024261144,
+     "[111]": 0.004725151152660302
+    },
+    "scan_field": {
+     "n_within": 336234,
+     "n_boundary": 21294,
+     "mean_within": 0.003412577662386597,
+     "mean_boundary": 0.0043396994031211986,
+     "ratio_means": 1.2716778436878755,
+     "auc_boundary_gt_within": 0.5902815746219592,
+     "boundary_share_of_pairs": 0.059558971605021147,
+     "boundary_share_of_tv": 0.07453380405759961
+    }
+   },
+   "lp1": {
+    "n_within": 2588645,
+    "n_boundary": 127235,
+    "mean_within": 0.0018816943795262758,
+    "mean_boundary": 0.002299435978355189,
+    "ratio_means": 1.222002894505154,
+    "auc_boundary_gt_within": 0.5565001589185365,
+    "boundary_share_of_pairs": 0.046848535281382095,
+    "boundary_share_of_tv": 0.05665975534046768,
+    "mean_within_by_grain": {
+     "[001]": 0.0016525333190158824,
+     "[110]": 0.002084654256972767,
+     "[111]": 0.001897506356989098
+    },
+    "scan_field": {
+     "n_within": 336234,
+     "n_boundary": 21294,
+     "mean_within": 0.0019046441239941188,
+     "mean_boundary": 0.002375904450536756,
+     "ratio_means": 1.2474269710576613,
+     "auc_boundary_gt_within": 0.5700262078519771,
+     "boundary_share_of_pairs": 0.059558971605021147,
+     "boundary_share_of_tv": 0.07321651270606767
+    }
+   },
+   "lp2": {
+    "n_within": 2588645,
+    "n_boundary": 127235,
+    "mean_within": 0.001203799625884368,
+    "mean_boundary": 0.001194101214584363,
+    "ratio_means": 0.9919435003205953,
+    "auc_boundary_gt_within": 0.5103742320509294,
+    "boundary_share_of_pairs": 0.046848535281382095,
+    "boundary_share_of_tv": 0.04648864652394603,
+    "mean_within_by_grain": {
+     "[001]": 0.0014710732484120184,
+     "[110]": 0.0008976155288384677,
+     "[111]": 0.0012759117228541294
+    },
+    "scan_field": {
+     "n_within": 336234,
+     "n_boundary": 21294,
+     "mean_within": 0.0013078369600466866,
+     "mean_boundary": 0.0012681149809056927,
+     "ratio_means": 0.9696277285667352,
+     "auc_boundary_gt_within": 0.4919882429322814,
+     "boundary_share_of_pairs": 0.059558971605021147,
+     "boundary_share_of_tv": 0.05785468608141421
+    }
+   },
+   "lp3": {
+    "n_within": 2588645,
+    "n_boundary": 127235,
+    "mean_within": 0.0011193255613305972,
+    "mean_boundary": 0.0009866473651153826,
+    "ratio_means": 0.8814659462815326,
+    "auc_boundary_gt_within": 0.4922836164184383,
+    "boundary_share_of_pairs": 0.046848535281382095,
+    "boundary_share_of_tv": 0.04152598839317307,
+    "mean_within_by_grain": {
+     "[001]": 0.0014323192500669735,
+     "[110]": 0.0007357976723930467,
+     "[111]": 0.0012363187961542531
+    },
+    "scan_field": {
+     "n_within": 336234,
+     "n_boundary": 21294,
+     "mean_within": 0.0012339484205435237,
+     "mean_boundary": 0.0010389837121180677,
+     "ratio_means": 0.8419993046876474,
+     "auc_boundary_gt_within": 0.45766448764910306,
+     "boundary_share_of_pairs": 0.059558971605021147,
+     "boundary_share_of_tv": 0.05062501221489836
+    }
+   },
+   "spectrum": {
+    "n_within": 31246,
+    "n_boundary": 2071,
+    "mean_within": 0.3290332853794098,
+    "mean_boundary": 0.5337151288986206,
+    "ratio_means": 1.6220703125,
+    "auc_boundary_gt_within": 0.8516801595687866,
+    "boundary_share_of_pairs": 0.06216045862472611,
+    "boundary_share_of_tv": 0.09707493335008621,
+    "mean_within_by_grain": {
+     "[001]": 0.306134968996048,
+     "[110]": 0.29101577401161194,
+     "[111]": 0.40414997935295105
+    }
+   }
+  },
+  "25": {
+   "slab_A": 8.0,
+   "raw": {
+    "n_within": 1756246,
+    "n_boundary": 126220,
+    "mean_within": 0.002601944118336473,
+    "mean_boundary": 0.005847388914220377,
+    "ratio_means": 2.2473153335663665,
+    "auc_boundary_gt_within": 0.6945524402630328,
+    "boundary_share_of_pairs": 0.06705034778848595,
+    "boundary_share_of_tv": 0.13905379853549715,
+    "mean_within_by_grain": {
+     "[001]": 0.004487967776171063,
+     "[110]": 0.0008438740037413264,
+     "[111]": 0.0025991347219829286
+    },
+    "scan_field": {
+     "n_within": 225174,
+     "n_boundary": 21232,
+     "mean_within": 0.002874903069876965,
+     "mean_boundary": 0.006328203718171848,
+     "ratio_means": 2.20118854944305,
+     "auc_boundary_gt_within": 0.6922659721175584,
+     "boundary_share_of_pairs": 0.08616673295293134,
+     "boundary_share_of_tv": 0.1718792908288946
+    }
+   },
+   "lp0.5": {
+    "n_within": 1756246,
+    "n_boundary": 126220,
+    "mean_within": 0.0022176088059115188,
+    "mean_boundary": 0.0036186693702582665,
+    "ratio_means": 1.6317888712436188,
+    "auc_boundary_gt_within": 0.6549936877673903,
+    "boundary_share_of_pairs": 0.06705034778848595,
+    "boundary_share_of_tv": 0.10496549821496795,
+    "mean_within_by_grain": {
+     "[001]": 0.0034850885663721305,
+     "[110]": 0.0008468761082415621,
+     "[111]": 0.0024648576780375298
+    },
+    "scan_field": {
+     "n_within": 225174,
+     "n_boundary": 21232,
+     "mean_within": 0.0024458533462268,
+     "mean_boundary": 0.0038566564651116163,
+     "ratio_means": 1.5768142726387304,
+     "auc_boundary_gt_within": 0.6414459196024868,
+     "boundary_share_of_pairs": 0.08616673295293134,
+     "boundary_share_of_tv": 0.12943569534903485
+    }
+   },
+   "lp1": {
+    "n_within": 1756246,
+    "n_boundary": 126220,
+    "mean_within": 0.0014227875203154414,
+    "mean_boundary": 0.001905092288078532,
+    "ratio_means": 1.3389858013768356,
+    "auc_boundary_gt_within": 0.6057777677864047,
+    "boundary_share_of_pairs": 0.06705034778848595,
+    "boundary_share_of_tv": 0.08778420626962924,
+    "mean_within_by_grain": {
+     "[001]": 0.0014618283738505684,
+     "[110]": 0.0008189622236749199,
+     "[111]": 0.0021697520904831575
+    },
+    "scan_field": {
+     "n_within": 225174,
+     "n_boundary": 21232,
+     "mean_within": 0.0015862982942650818,
+     "mean_boundary": 0.001946751651716743,
+     "ratio_means": 1.227229241029132,
+     "auc_boundary_gt_within": 0.5721768149491334,
+     "boundary_share_of_pairs": 0.08616673295293134,
+     "boundary_share_of_tv": 0.10371562371957561
+    }
+   },
+   "lp2": {
+    "n_within": 1756246,
+    "n_boundary": 126220,
+    "mean_within": 0.001016476825340687,
+    "mean_boundary": 0.0011026474895356637,
+    "ratio_means": 1.084773860108513,
+    "auc_boundary_gt_within": 0.6085911412612898,
+    "boundary_share_of_pairs": 0.06705034778848595,
+    "boundary_share_of_tv": 0.0723233701088023,
+    "mean_within_by_grain": {
+     "[001]": 0.0004590797736342822,
+     "[110]": 0.0007694570169973908,
+     "[111]": 0.0020265338332827437
+    },
+    "scan_field": {
+     "n_within": 225174,
+     "n_boundary": 21232,
+     "mean_within": 0.0011794735963202808,
+     "mean_boundary": 0.0010586867663774833,
+     "ratio_means": 0.8975925952733252,
+     "auc_boundary_gt_within": 0.5586850569894499,
+     "boundary_share_of_pairs": 0.08616673295293134,
+     "boundary_share_of_tv": 0.07803117726576235
+    }
+   },
+   "lp3": {
+    "n_within": 1756246,
+    "n_boundary": 126220,
+    "mean_within": 0.0009844115330683908,
+    "mean_boundary": 0.0009392392497478852,
+    "ratio_means": 0.9541123993339407,
+    "auc_boundary_gt_within": 0.5907660916653462,
+    "boundary_share_of_pairs": 0.06705034778848595,
+    "boundary_share_of_tv": 0.0641710082527138,
+    "mean_within_by_grain": {
+     "[001]": 0.00042777115078461734,
+     "[110]": 0.0007492095746667452,
+     "[111]": 0.001977980706244693
+    },
+    "scan_field": {
+     "n_within": 225174,
+     "n_boundary": 21232,
+     "mean_within": 0.0011455317255129641,
+     "mean_boundary": 0.0008419089850751379,
+     "ratio_means": 0.7349503870773503,
+     "auc_boundary_gt_within": 0.5237766154860588,
+     "boundary_share_of_pairs": 0.08616673295293134,
+     "boundary_share_of_tv": 0.06480839768431401
+    }
+   },
+   "spectrum": {
+    "n_within": 21064,
+    "n_boundary": 2068,
+    "mean_within": 0.19134779274463654,
+    "mean_boundary": 0.5469505786895752,
+    "ratio_means": 2.858410596847534,
+    "auc_boundary_gt_within": 0.9577463269233704,
+    "boundary_share_of_pairs": 0.08939996541587411,
+    "boundary_share_of_tv": 0.21913442015647888,
+    "mean_within_by_grain": {
+     "[001]": 0.28230664134025574,
+     "[110]": 0.048258256167173386,
+     "[111]": 0.24533100426197052
+    }
+   }
+  },
+  "20": {
+   "slab_A": 10.0,
+   "raw": {
+    "n_within": 1340858,
+    "n_boundary": 124909,
+    "mean_within": 0.0016635985204625392,
+    "mean_boundary": 0.005699975322757885,
+    "ratio_means": 3.426292613660831,
+    "auc_boundary_gt_within": 0.7669176869561041,
+    "boundary_share_of_pairs": 0.08521750046221535,
+    "boundary_share_of_tv": 0.2419532179252408,
+    "mean_within_by_grain": {
+     "[001]": 0.0014586799725822758,
+     "[110]": 0.0023735340985390485,
+     "[111]": 0.0009746810357680576
+    },
+    "scan_field": {
+     "n_within": 169703,
+     "n_boundary": 21190,
+     "mean_within": 0.0015523547507210647,
+     "mean_boundary": 0.006152276720549966,
+     "ratio_means": 3.9631899330306104,
+     "auc_boundary_gt_within": 0.8081536593243765,
+     "boundary_share_of_pairs": 0.11100459419674896,
+     "boundary_share_of_tv": 0.33104305941574175
+    }
+   },
+   "lp0.5": {
+    "n_within": 1340858,
+    "n_boundary": 124909,
+    "mean_within": 0.0014848057552052285,
+    "mean_boundary": 0.0032787621023782345,
+    "ratio_means": 2.2082094515622663,
+    "auc_boundary_gt_within": 0.7240298040973829,
+    "boundary_share_of_pairs": 0.08521750046221535,
+    "boundary_share_of_tv": 0.17061179860016595,
+    "mean_within_by_grain": {
+     "[001]": 0.0013387990841646233,
+     "[110]": 0.002050820336274412,
+     "[111]": 0.0009141371630342548
+    },
+    "scan_field": {
+     "n_within": 169703,
+     "n_boundary": 21190,
+     "mean_within": 0.0013864718438248477,
+     "mean_boundary": 0.0035004661391049687,
+     "ratio_means": 2.5247293370547386,
+     "auc_boundary_gt_within": 0.7629376700499187,
+     "boundary_share_of_pairs": 0.11100459419674896,
+     "boundary_share_of_tv": 0.2396887623776877
+    }
+   },
+   "lp1": {
+    "n_within": 1340858,
+    "n_boundary": 124909,
+    "mean_within": 0.0011398804194221357,
+    "mean_boundary": 0.001571406089286581,
+    "ratio_means": 1.378570999652058,
+    "auc_boundary_gt_within": 0.5929085085141983,
+    "boundary_share_of_pairs": 0.08521750046221535,
+    "boundary_share_of_tv": 0.11380686580357449,
+    "mean_within_by_grain": {
+     "[001]": 0.0010773881617621487,
+     "[110]": 0.001476167004842418,
+     "[111]": 0.0007709308929857137
+    },
+    "scan_field": {
+     "n_within": 169703,
+     "n_boundary": 21190,
+     "mean_within": 0.0010750888922535068,
+     "mean_boundary": 0.0015806479699727242,
+     "ratio_means": 1.4702486290780188,
+     "auc_boundary_gt_within": 0.6149755530062894,
+     "boundary_share_of_pairs": 0.11100459419674896,
+     "boundary_share_of_tv": 0.15510776462423065
+    }
+   },
+   "lp2": {
+    "n_within": 1340858,
+    "n_boundary": 124909,
+    "mean_within": 0.0008087308081626397,
+    "mean_boundary": 0.0007922450722654358,
+    "ratio_means": 0.9796152987733238,
+    "auc_boundary_gt_within": 0.5079458688725392,
+    "boundary_share_of_pairs": 0.08521750046221535,
+    "boundary_share_of_tv": 0.08362563605197501,
+    "mean_within_by_grain": {
+     "[001]": 0.0009041283805047676,
+     "[110]": 0.0007990680385818845,
+     "[111]": 0.0007039528947316461
+    },
+    "scan_field": {
+     "n_within": 169703,
+     "n_boundary": 21190,
+     "mean_within": 0.0008053285420638675,
+     "mean_boundary": 0.0007991592067604441,
+     "ratio_means": 0.9923393559507864,
+     "auc_boundary_gt_within": 0.5111651392227573,
+     "boundary_share_of_pairs": 0.11100459419674896,
+     "boundary_share_of_tv": 0.11024797872085935
+    }
+   },
+   "lp3": {
+    "n_within": 1340858,
+    "n_boundary": 124909,
+    "mean_within": 0.0007527380790507775,
+    "mean_boundary": 0.0006222165690135229,
+    "ratio_means": 0.8266043479534798,
+    "auc_boundary_gt_within": 0.482857130791216,
+    "boundary_share_of_pairs": 0.08521750046221535,
+    "boundary_share_of_tv": 0.0714976299837971,
+    "mean_within_by_grain": {
+     "[001]": 0.0008653475385954516,
+     "[110]": 0.0006959346792912186,
+     "[111]": 0.0006892613926510252
+    },
+    "scan_field": {
+     "n_within": 169703,
+     "n_boundary": 21190,
+     "mean_within": 0.0007669202393521151,
+     "mean_boundary": 0.0006108446545592723,
+     "ratio_means": 0.7964904604360244,
+     "auc_boundary_gt_within": 0.46752807295343735,
+     "boundary_share_of_pairs": 0.11100459419674896,
+     "boundary_share_of_tv": 0.09045758178774867
+    }
+   },
+   "spectrum": {
+    "n_within": 15990,
+    "n_boundary": 2064,
+    "mean_within": 0.18941588699817657,
+    "mean_boundary": 0.5634393095970154,
+    "ratio_means": 2.9746148586273193,
+    "auc_boundary_gt_within": 0.9680333137512207,
+    "boundary_share_of_pairs": 0.11432369557992689,
+    "boundary_share_of_tv": 0.27743852138519287,
+    "mean_within_by_grain": {
+     "[001]": 0.23550598323345184,
+     "[110]": 0.20968204736709595,
+     "[111]": 0.10414933413267136
+    }
+   }
+  }
+ }
+}
