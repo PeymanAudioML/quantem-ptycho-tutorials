@@ -30,6 +30,7 @@ def main():
     cfg = bench.load_config(a.config)
     tr = Truth(cfg, a.specimen)
     T = tr.T
+    layered = a.specimen.endswith("XYZ")  # P3_XYZ: grains stacked in depth, not columns
     plt.rcParams.update({"figure.facecolor": "white", "font.size": 9})
     fig, ax = plt.subplots(len(a.runs), 4, figsize=(22, 4.6 * len(a.runs)), squeeze=False)
     for i, run in enumerate(a.runs):
@@ -61,7 +62,13 @@ def main():
         ax[i, 1].errorbar(z[order], np.arange(len(z)), xerr=u[order], fmt="o", ms=3, color="k", ecolor="0.7", lw=0.8)
         for v in s["depth"]["layers"]:
             ax[i, 1].axvline(v, color="tab:red", ls="--", lw=1)
-        ax[i, 1].axvspan(0, T, color="tab:green", alpha=0.08, label="true grains: all span 0–T")
+        if layered:
+            for zs, nm in ((40, "[001]"), (110, "[110]"), (170, "[111]")):
+                ax[i, 1].axvline(zs, color="tab:green", lw=1.2, alpha=0.6)
+                ax[i, 1].text(zs, len(z) - 0.5, nm, color="tab:green", fontsize=7, ha="center", va="bottom")
+            ax[i, 1].axvspan(0, T, color="tab:green", alpha=0.08, label="specimen 0–T; green lines = true grain seed depths")
+        else:
+            ax[i, 1].axvspan(0, T, color="tab:green", alpha=0.08, label="true grains: all span 0–T")
         ax[i, 1].set_xlim(zg.min(), zg.max()), ax[i, 1].set_xlabel("picked depth z ± uncertainty (Å)")
         ax[i, 1].set_ylabel("feature (sorted by z)"), ax[i, 1].legend(fontsize=7, loc="lower right")
         ax[i, 1].set_title(f"feature depths; red dashed = focus-curve layers {s['depth']['layers']}", fontsize=8)
@@ -83,8 +90,9 @@ def main():
         fig.colorbar(sc, ax=ax[i, 3], shrink=0.8, label="picked z (Å)")
         ax[i, 3].set_title("feature positions on the true projected potential, coloured by depth", fontsize=8)
         ax[i, 3].set_xlabel("x (Å)"), ax[i, 3].set_ylabel("y (Å)")
-    fig.suptitle(f"{a.specimen}: S-matrix depth output (truth: grains are columns through the full {T:.0f} Å)",
-                 fontsize=10)
+    truth_txt = ("truth: grains stacked in depth, [001] top / [110] middle / [111] bottom, seeds at z 40 / 110 / 170 Å"
+                 if layered else f"truth: grains are columns through the full {T:.0f} Å")
+    fig.suptitle(f"{a.specimen}: S-matrix depth output ({truth_txt})", fontsize=10)
     fig.tight_layout(rect=(0, 0, 1, 0.97))
     out = os.path.join(bench.HERE, "results", "smatrix", cfg["name"], a.specimen, "depth_features.png")
     fig.savefig(out, dpi=90)

@@ -56,7 +56,7 @@ def main():
         ax[2 * r, c].set_title(f"S refocused z={zg[i]:.0f} Å ({bnd[k]:.0f}–{bnd[k + 1]:.0f})", fontsize=7)
         ax[2 * r + 1, c].imshow(tru, cmap="gray")
         ax[2 * r + 1, c].set_title(f"truth; corr {sc:.2f} (proj {st:.2f})", fontsize=7)
-    fig.suptitle(f"{a.specimen}: {a.run}  ({s['single_probe_mode']} probe)\nrefocused S-matrix phase at each slab centre (rows 1, 3, ...) "
+    fig.suptitle(f"{a.specimen}: {a.run}  ({s.get('single_probe_mode') or ('%d defocus datasets, fitted' % len(s.get('coefficients', [])))} probe)\nrefocused S-matrix phase at each slab centre (rows 1, 3, ...) "
                  "vs true σV over the same slab (rows 2, 4, ...); corr = vs own slab, proj = vs whole projection", fontsize=9)
     fig.tight_layout()
     out = os.path.join(bench.HERE, "results", "single_focus_joint", a.specimen)
