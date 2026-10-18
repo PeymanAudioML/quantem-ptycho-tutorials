@@ -11,6 +11,8 @@ runs are written by the runner to `../runs/poly_si_3grain/P3_XYZ/`; their summar
 | folder | content |
 |---|---|
 | `results/step0_gt_axial_tv/`, `results/step0_gt_axial_tv_slices/` | P3_XYZ ground truth only (no reconstruction) |
+| `results/tvz_sweep/` | P3_XYZ QuantEM depth TV `tv_weight_z` = 0/10/100/1000 at 20 slices, arm F; [README](results/tvz_sweep/README.md), from [`run_tvz_sweep.sh`](run_tvz_sweep.sh) |
+| `results/tvz_35sl/` | same at 35 slices (w = 1000, 1750) vs 20 slices; [README](results/tvz_35sl/README.md), from [`run_tvz35.sh`](run_tvz35.sh) |
 | `results/p3xyz_baseline/` | P3_XYZ unregularized baseline: QuantEM A, S-matrix fit, QuantEM E/F (dataset 1, all patterns); done 2026-10-17, [README](results/p3xyz_baseline/README.md), from [`run_p3xyz_baseline.sh`](run_p3xyz_baseline.sh) |
 
 | step | code | results | status |
