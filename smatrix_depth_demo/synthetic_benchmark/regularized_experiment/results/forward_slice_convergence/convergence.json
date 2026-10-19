@@ -1,0 +1,276 @@
+{
+ "specimen": "P3_XYZ",
+ "dataset": 1,
+ "energy_eV": 300000.0,
+ "wavelength_A": 0.0196874882021318,
+ "dr_quantem_A": 0.19999998157276475,
+ "rows": [
+  {
+   "L_data": 0.006365739836862905,
+   "L_data_bright_field": 0.00259266928988788,
+   "L_data_dark_field": 0.05560583631706162,
+   "dark_field_fraction_of_measured_intensity": 0.07117232866017997,
+   "quantem_loss": 17.8979358231737,
+   "slabs": 100,
+   "dz_A": 2.0,
+   "placement": "entrance"
+  },
+  {
+   "L_data": 0.006476398730970794,
+   "L_data_bright_field": 0.00269438282264765,
+   "L_data_dark_field": 0.05583323579429609,
+   "dark_field_fraction_of_measured_intensity": 0.07117232866017997,
+   "quantem_loss": 18.208772871832952,
+   "slabs": 100,
+   "dz_A": 2.0,
+   "placement": "midpoint"
+  },
+  {
+   "L_data": 0.0067663264242789215,
+   "L_data_bright_field": 0.002649122819486215,
+   "L_data_dark_field": 0.060497498477542086,
+   "dark_field_fraction_of_measured_intensity": 0.07117232866017997,
+   "quantem_loss": 19.023186239240516,
+   "slabs": 50,
+   "dz_A": 4.0,
+   "placement": "entrance"
+  },
+  {
+   "L_data": 0.006835047784675726,
+   "L_data_bright_field": 0.00270921835733183,
+   "L_data_dark_field": 0.060678790310542983,
+   "dark_field_fraction_of_measured_intensity": 0.07117232866017997,
+   "quantem_loss": 19.21621743212734,
+   "slabs": 50,
+   "dz_A": 4.0,
+   "placement": "midpoint"
+  },
+  {
+   "L_data": 0.006648751173242159,
+   "L_data_bright_field": 0.0026495914386570137,
+   "L_data_dark_field": 0.058839402982966166,
+   "dark_field_fraction_of_measured_intensity": 0.07117232866017997,
+   "quantem_loss": 18.692888604147488,
+   "slabs": 50,
+   "dz_A": 4.0,
+   "placement": "shared x2"
+  },
+  {
+   "L_data": 0.007418823351183856,
+   "L_data_bright_field": 0.0028503709165453115,
+   "L_data_dark_field": 0.06703897512045043,
+   "dark_field_fraction_of_measured_intensity": 0.07117232866017997,
+   "quantem_loss": 20.85613343078244,
+   "slabs": 35,
+   "dz_A": 5.714285714285714,
+   "placement": "entrance"
+  },
+  {
+   "L_data": 0.007244607432557126,
+   "L_data_bright_field": 0.0026722933832419886,
+   "L_data_dark_field": 0.06691515483500295,
+   "dark_field_fraction_of_measured_intensity": 0.07117232866017997,
+   "quantem_loss": 20.3667583608169,
+   "slabs": 35,
+   "dz_A": 5.714285714285714,
+   "placement": "midpoint"
+  },
+  {
+   "L_data": 0.006772843242915197,
+   "L_data_bright_field": 0.0026777597899152175,
+   "L_data_dark_field": 0.060215338369820924,
+   "dark_field_fraction_of_measured_intensity": 0.07117232866017997,
+   "quantem_loss": 19.04149393833333,
+   "slabs": 35,
+   "dz_A": 5.714285714285714,
+   "placement": "shared x3"
+  },
+  {
+   "L_data": 0.007726715560332168,
+   "L_data_bright_field": 0.0030943559389723925,
+   "L_data_dark_field": 0.06818088196058791,
+   "dark_field_fraction_of_measured_intensity": 0.07117232866017997,
+   "quantem_loss": 21.72098411839812,
+   "slabs": 25,
+   "dz_A": 8.0,
+   "placement": "entrance"
+  },
+  {
+   "L_data": 0.007267087957789335,
+   "L_data_bright_field": 0.0026511473486384696,
+   "L_data_dark_field": 0.0675069796088161,
+   "dark_field_fraction_of_measured_intensity": 0.07117232866017997,
+   "quantem_loss": 20.429891407723186,
+   "slabs": 25,
+   "dz_A": 8.0,
+   "placement": "midpoint"
+  },
+  {
+   "L_data": 0.006722862543125082,
+   "L_data_bright_field": 0.002686296810357946,
+   "L_data_dark_field": 0.059401677756233104,
+   "dark_field_fraction_of_measured_intensity": 0.07117232866017997,
+   "quantem_loss": 18.901018060539574,
+   "slabs": 25,
+   "dz_A": 8.0,
+   "placement": "shared x4"
+  },
+  {
+   "L_data": 0.008638647505782013,
+   "L_data_bright_field": 0.0035984969608889674,
+   "L_data_dark_field": 0.0744146503701415,
+   "dark_field_fraction_of_measured_intensity": 0.07117232866017997,
+   "quantem_loss": 24.282479253261698,
+   "slabs": 20,
+   "dz_A": 10.0,
+   "placement": "entrance"
+  },
+  {
+   "L_data": 0.007583954356254865,
+   "L_data_bright_field": 0.0025699266889112303,
+   "L_data_dark_field": 0.0730190431044167,
+   "dark_field_fraction_of_measured_intensity": 0.07117232866017997,
+   "quantem_loss": 21.319852764473218,
+   "slabs": 20,
+   "dz_A": 10.0,
+   "placement": "midpoint"
+  },
+  {
+   "L_data": 0.00648447774078331,
+   "L_data_bright_field": 0.0027029941473484154,
+   "L_data_dark_field": 0.05583436787954706,
+   "dark_field_fraction_of_measured_intensity": 0.07117232866017997,
+   "quantem_loss": 18.23117810307384,
+   "slabs": 20,
+   "dz_A": 10.0,
+   "placement": "shared x5"
+  },
+  {
+   "L_data": 0.03293252536266286,
+   "L_data_bright_field": 0.00831021390326123,
+   "L_data_dark_field": 0.3542636472518248,
+   "dark_field_fraction_of_measured_intensity": 0.07117232866017997,
+   "quantem_loss": 92.52396753514182,
+   "slabs": 10,
+   "dz_A": 20.0,
+   "placement": "entrance"
+  },
+  {
+   "L_data": 0.02700446840994605,
+   "L_data_bright_field": 0.002567166470053429,
+   "L_data_dark_field": 0.34592114125105544,
+   "dark_field_fraction_of_measured_intensity": 0.07117232866017997,
+   "quantem_loss": 75.8721328197573,
+   "slabs": 10,
+   "dz_A": 20.0,
+   "placement": "midpoint"
+  },
+  {
+   "L_data": 0.00591586869645661,
+   "L_data_bright_field": 0.002709869855029137,
+   "L_data_dark_field": 0.047755450093591556,
+   "dark_field_fraction_of_measured_intensity": 0.07117232866017997,
+   "quantem_loss": 16.633394834111705,
+   "slabs": 10,
+   "dz_A": 20.0,
+   "placement": "shared x10"
+  },
+  {
+   "L_data": 0.10266835462833608,
+   "L_data_bright_field": 0.031277450732667675,
+   "L_data_dark_field": 1.0343485211838264,
+   "dark_field_fraction_of_measured_intensity": 0.07117232866017997,
+   "quantem_loss": 288.412708753706,
+   "slabs": 5,
+   "dz_A": 40.0,
+   "placement": "entrance"
+  },
+  {
+   "L_data": 0.07821882599310138,
+   "L_data_bright_field": 0.0074372986147766005,
+   "L_data_dark_field": 1.0019463825633839,
+   "dark_field_fraction_of_measured_intensity": 0.07117232866017997,
+   "quantem_loss": 219.7342365029954,
+   "slabs": 5,
+   "dz_A": 40.0,
+   "placement": "midpoint"
+  },
+  {
+   "L_data": 0.008316950524546597,
+   "L_data_bright_field": 0.003543617921677137,
+   "L_data_dark_field": 0.07061087134344243,
+   "dark_field_fraction_of_measured_intensity": 0.07117232866017997,
+   "quantem_loss": 23.37684322260758,
+   "slabs": 5,
+   "dz_A": 40.0,
+   "placement": "shared x20"
+  },
+  {
+   "L_data": 0.2803906774739787,
+   "L_data_bright_field": 0.139380413134473,
+   "L_data_dark_field": 2.120631652120548,
+   "dark_field_fraction_of_measured_intensity": 0.07117232866017997,
+   "quantem_loss": 787.6348065613597,
+   "slabs": 2,
+   "dz_A": 100.0,
+   "placement": "entrance"
+  },
+  {
+   "L_data": 0.20840224458452697,
+   "L_data_bright_field": 0.06836946111867002,
+   "L_data_dark_field": 2.0358866985334907,
+   "dark_field_fraction_of_measured_intensity": 0.07117232866017997,
+   "quantem_loss": 585.4196434034576,
+   "slabs": 2,
+   "dz_A": 100.0,
+   "placement": "midpoint"
+  },
+  {
+   "L_data": 0.05476751119035941,
+   "L_data_bright_field": 0.03548682351516332,
+   "L_data_dark_field": 0.3063882825253614,
+   "dark_field_fraction_of_measured_intensity": 0.07117232866017997,
+   "quantem_loss": 153.84977520093582,
+   "slabs": 2,
+   "dz_A": 100.0,
+   "placement": "shared x50"
+  },
+  {
+   "L_data": 0.3724737033892063,
+   "L_data_bright_field": 0.223856953380721,
+   "L_data_dark_field": 2.3119823921038543,
+   "dark_field_fraction_of_measured_intensity": 0.07117232866017997,
+   "quantem_loss": 1046.2953273274798,
+   "slabs": 1,
+   "dz_A": 200.0,
+   "placement": "entrance"
+  },
+  {
+   "L_data": 0.3107575507525661,
+   "L_data_bright_field": 0.1601561947188821,
+   "L_data_dark_field": 2.2761661506772795,
+   "dark_field_fraction_of_measured_intensity": 0.07117232866017997,
+   "quantem_loss": 872.9351259736075,
+   "slabs": 1,
+   "dz_A": 200.0,
+   "placement": "midpoint"
+  },
+  {
+   "L_data": 0.12139087293039495,
+   "L_data_bright_field": 0.09606122501629788,
+   "L_data_dark_field": 0.4519530216025279,
+   "dark_field_fraction_of_measured_intensity": 0.07117232866017997,
+   "quantem_loss": 340.9862720547897,
+   "slabs": 1,
+   "dz_A": 200.0,
+   "placement": "shared x100"
+  }
+ ],
+ "vacuum": {
+  "L_data": 0.20766233153250885,
+  "L_data_bright_field": 0.16184585051284048,
+  "L_data_dark_field": 0.8055859371752307,
+  "dark_field_fraction_of_measured_intensity": 0.07117232866017997,
+  "quantem_loss": 582.9297107059618
+ }
+}

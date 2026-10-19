@@ -1,0 +1,143 @@
+{
+ "run": "smatrix_window_noiseless_s0_sfall_single_d1_joint",
+ "specimen": "P3_XY",
+ "params": {
+  "config": "configs/poly_si_3grain.yaml",
+  "specimen": "P3_XY",
+  "run": "smatrix_window_noiseless_s0_sfall_single_d1_joint",
+  "tile": 32,
+  "stride": 4,
+  "kmin": 2.0,
+  "dz": 4.0,
+  "npc": 10,
+  "truth_slab": 10.0,
+  "quantem_run": "quantem_window_noiseless_d1_F_smatrix_trained_call_s0_sfallQ",
+  "quantem_label": "QuantEM F, 35 slices (this S start)",
+  "smatrix_label": "S-matrix (1 defocus, joint probe)",
+  "out": "regularized_experiment/results/smatrix_grains_3d/P3_XY_single_d1_joint"
+ },
+ "depths_A": [
+  0.0,
+  4.0,
+  8.0,
+  12.0,
+  16.0,
+  20.0,
+  24.0,
+  28.0,
+  32.0,
+  36.0,
+  40.0,
+  44.0,
+  48.0,
+  52.0,
+  56.0,
+  60.0,
+  64.0,
+  68.0,
+  72.0,
+  76.0,
+  80.0,
+  84.0,
+  88.0,
+  92.0,
+  96.0,
+  100.0,
+  104.0,
+  108.0,
+  112.0,
+  116.0,
+  120.0,
+  124.0,
+  128.0,
+  132.0,
+  136.0,
+  140.0,
+  144.0,
+  148.0,
+  152.0,
+  156.0,
+  160.0,
+  164.0,
+  168.0,
+  172.0,
+  176.0,
+  180.0,
+  184.0,
+  188.0,
+  192.0,
+  196.0,
+  200.0
+ ],
+ "tile_centres_A": [
+  3.2,
+  4.0,
+  4.800000000000001,
+  5.6000000000000005,
+  6.4,
+  7.2,
+  8.0,
+  8.8,
+  9.600000000000001,
+  10.4,
+  11.200000000000001,
+  12.0,
+  12.8,
+  13.600000000000001,
+  14.4,
+  15.200000000000001,
+  16.0,
+  16.8,
+  17.6
+ ],
+ "results": {
+  "S-matrix": {
+   "voxel_accuracy": 0.9399272174243659,
+   "band_accuracy_40A": [
+    0.9326869806094182,
+    0.9412742382271468,
+    0.9415512465373961,
+    0.9418282548476454,
+    0.9421052631578948
+   ],
+   "cluster_to_grain": [
+    2,
+    0,
+    1
+   ],
+   "chance": 0.3518005540166205
+  },
+  "QuantEM F, 35 slices (this S start)": {
+   "voxel_accuracy": 0.9216229428059313,
+   "band_accuracy_40A": [
+    0.8606648199445983,
+    0.9404432132963989,
+    0.9337950138504155,
+    0.9373961218836565,
+    0.9346260387811635
+   ],
+   "cluster_to_grain": [
+    0,
+    1,
+    2
+   ],
+   "chance": 0.3518005540166205
+  },
+  "truth potential": {
+   "voxel_accuracy": 0.9289012003693444,
+   "band_accuracy_40A": [
+    0.910803324099723,
+    0.938781163434903,
+    0.9373961218836565,
+    0.9401662049861496,
+    0.9340720221606649
+   ],
+   "cluster_to_grain": [
+    0,
+    1,
+    2
+   ],
+   "chance": 0.3518005540166205
+  }
+ }
+}
