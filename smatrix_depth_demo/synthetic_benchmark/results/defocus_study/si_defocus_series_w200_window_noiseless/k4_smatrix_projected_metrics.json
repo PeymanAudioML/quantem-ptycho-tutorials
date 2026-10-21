@@ -1,0 +1,21 @@
+{
+ "run": "runs/defocus_study_si_defocus_series_w200_window_noiseless/k4_d0-d1-d2-d3/smatrix_window_noiseless_s0_study",
+ "depth_A": 80.0,
+ "projected": {
+  "corr": 0.92517638838798,
+  "slope": 0.34323430589001097,
+  "offset": -0.5305793421697017,
+  "rmse_raw": 1.7907623531761494,
+  "rmse_fit": 0.17539068777066033,
+  "nrmse_fit": 0.3795374162969623
+ },
+ "columns": {
+  "n_columns": 25,
+  "background_offset": -1.206220954656601,
+  "peak_ratio_mean": 0.30730369269810603,
+  "peak_ratio_std": 0.00825628289868611,
+  "peak_ratio_min": 0.2964807805791735,
+  "peak_ratio_max": 0.32656372448340176,
+  "nn_distance_A": 1.91049731745428
+ }
+}

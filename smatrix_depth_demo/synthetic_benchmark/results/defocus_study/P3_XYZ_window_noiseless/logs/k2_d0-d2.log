@@ -1,0 +1,7 @@
+geometry check FAILED: measurements/unknowns: 0.493 vs limit 0.7 (2 datasets x 2809 positions, 1313 beams)
+geometry check failed but --allow-underdetermined is set: fitting anyway (expect a degraded S)
+[smatrix_window_noiseless_s0_study] best epoch 80 used; 80 of 80 epochs 8522 s: train loss 6.297e-04, held-out nan; C10 [-166.7, -42.95] C12a [0.0, -2.91] C12b [0.0, 4.84]
+[smatrix_window_noiseless_s0_study] 38 lateral features (threshold 0.951); depths [114.0, 108.3, 117.4, 115.1, 112.6, 109.1, 109.6, 100.2, 92.5, 92.3, 102.6, 113.5, 106.3, 101.6, 105.0, 104.8, 100.5, 106.9, 112.6, 94.5, 109.1, 109.0, 97.9, 103.1, 76.2, 121.9, 95.9, 130.1, 112.5, 115.6, 109.4, 116.3, 119.7, 121.8, 106.2, 108.2, 136.8, 118.2] A; focus-curve layers [110.0] A
+S-matrix: voxel accuracy 0.861 (majority-class 0.378); per 40 A band 0.97 / 0.74 / 0.89 / 0.86 / 0.83
+truth potential: voxel accuracy 0.967 (majority-class 0.378); per 40 A band 0.99 / 0.98 / 0.98 / 0.94 / 0.99
+/mnt/data/quantem-ptycho-tutorials/smatrix_depth_demo/synthetic_benchmark/results/defocus_study/P3_XYZ_window_noiseless/grains/k2_d0-d2

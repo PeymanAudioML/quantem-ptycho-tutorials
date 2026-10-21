@@ -1,0 +1,28 @@
+# written by defocus_study.py: datasets [0, 2] of the study 'defocus_study_P3_XYZ_window_noiseless' (def<j> here = source def[0, 2])
+version: 1
+name: defocus_study_P3_XYZ_window_noiseless
+microscope:
+  energy_ev: 300000.0
+  alpha_mrad: 20.0
+  aperture_taper_mrad: 2.0
+sampling:
+  dr_A: 0.2
+  K: 96
+  Y: 288
+  scan_shape:
+  - 53
+  - 53
+specimen:
+  thickness_A: 200.0
+defocus:
+  reference: 0
+  nominal_C10:
+  - -166.7
+  - -33.3
+  source_datasets:
+  - 0
+  - 2
+specimens:
+  k2_d0-d2:
+    group: k2_d0-d2
+    features: []

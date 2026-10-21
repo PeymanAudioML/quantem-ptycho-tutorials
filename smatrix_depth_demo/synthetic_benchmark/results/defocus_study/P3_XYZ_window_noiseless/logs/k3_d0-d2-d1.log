@@ -1,0 +1,5 @@
+[smatrix_window_noiseless_s0_study] best epoch 80 used; 80 of 80 epochs 12721 s: train loss 9.323e-04, held-out nan; C10 [-166.7, -43.36, -87.85] C12a [0.0, -2.94, 6.07] C12b [0.0, 4.85, -4.09]
+[smatrix_window_noiseless_s0_study] 37 lateral features (threshold 0.96); depths [114.2, 118.1, 110.4, 115.6, 108.3, 112.4, 118.8, 94.1, 110.1, 101.8, 115.7, 110.6, 94.2, 107.8, 104.7, 108.2, 103.2, 116.4, 101.8, 106.5, 115.3, 96.4, 108.8, 99.9, 104.9, 77.1, 96.5, 124.1, 131.9, 114.9, 117.2, 121.5, 91.0, 110.4, 118.7, 122.7, 107.5] A; focus-curve layers [112.0] A
+S-matrix: voxel accuracy 0.859 (majority-class 0.378); per 40 A band 0.97 / 0.76 / 0.90 / 0.85 / 0.81
+truth potential: voxel accuracy 0.967 (majority-class 0.378); per 40 A band 0.99 / 0.98 / 0.98 / 0.94 / 0.99
+/mnt/data/quantem-ptycho-tutorials/smatrix_depth_demo/synthetic_benchmark/results/defocus_study/P3_XYZ_window_noiseless/grains/k3_d0-d2-d1

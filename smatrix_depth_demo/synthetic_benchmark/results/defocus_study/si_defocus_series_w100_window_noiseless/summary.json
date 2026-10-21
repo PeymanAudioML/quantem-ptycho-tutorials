@@ -1,0 +1,299 @@
+{
+ "name": "si_defocus_series_w100_window_noiseless",
+ "data": "/mnt/data/quantem-ptycho-tutorials/smatrix_depth_demo/synthetic_benchmark/data/iman_data/si_defocus_series_w100/window_noiseless",
+ "truth": "/mnt/data/quantem-ptycho-tutorials/smatrix_depth_demo/synthetic_benchmark/data/iman_data/si_defocus_series_w100/ground_truth",
+ "reference": 0,
+ "order": [
+  0,
+  1
+ ],
+ "datasets": {
+  "def0": {
+   "energy": 200000.0,
+   "alpha_mrad": 20.0,
+   "taper_mrad": 2.0,
+   "defocus": 0.0,
+   "K": 100,
+   "dk": 0.1,
+   "step": [
+    0.3,
+    0.3
+   ],
+   "scan": [
+    37,
+    37
+   ],
+   "cell": [
+    80.0,
+    80.0,
+    160.0
+   ]
+  },
+  "def1": {
+   "energy": 200000.0,
+   "alpha_mrad": 20.0,
+   "taper_mrad": 2.0,
+   "defocus": 60.0,
+   "K": 100,
+   "dk": 0.1,
+   "step": [
+    0.3,
+    0.3
+   ],
+   "scan": [
+    37,
+    37
+   ],
+   "cell": [
+    80.0,
+    80.0,
+    160.0
+   ]
+  }
+ },
+ "settings": {
+  "epochs": 80,
+  "warmup": 8,
+  "batch": 16,
+  "lr_S": 0.02,
+  "lr_probe": null,
+  "dz": 2.0
+ },
+ "results": [
+  {
+   "tag": "k1_d0",
+   "datasets": [
+    0
+   ],
+   "k": 1,
+   "loss_train": 0.00030706547630831465,
+   "fit_time_h": 0.11174921320544348,
+   "measurements_per_unknown": 0.7159035382473427,
+   "fitted": {
+    "def0": {
+     "C10": 0.0,
+     "C12a": 0.0,
+     "C12b": 0.0
+    }
+   },
+   "nominal": {
+    "def0": {
+     "C10": -0.0,
+     "C12a": 0.0,
+     "C12b": 0.0
+    }
+   },
+   "focus_layers": [
+    78.0
+   ],
+   "truth_aberrations": {
+    "def0": {
+     "C10": -0.0,
+     "C12a": 0.0,
+     "C12b": 0.0
+    }
+   },
+   "probe_error": {
+    "def0": {
+     "C10": 0.0,
+     "C12a": 0.0,
+     "C12b": 0.0,
+     "rms_phase_rad": 1.1900013493895434e-08
+    }
+   },
+   "probe_rms_rad_max": 1.1900013493895434e-08,
+   "projected_corr": 0.9309339330407513,
+   "section_depths_A": [
+    10.0,
+    30.0,
+    50.0,
+    70.0,
+    90.0,
+    110.0,
+    130.0,
+    150.0
+   ],
+   "slab_corr": [
+    0.9373,
+    0.9361,
+    0.9224,
+    0.9193,
+    0.9196,
+    0.8934,
+    0.8882,
+    0.8964
+   ],
+   "mean_slab_corr": 0.9140867112069777,
+   "mean_proj_corr": 0.9274269659493194,
+   "selectivity": -0.013340254742341684,
+   "depth_hits": 2,
+   "n_sections": 8,
+   "depth_error_A": 52.5,
+   "focus_curve_vs_truth_corr": -0.06111839546604344
+  },
+  {
+   "tag": "k1_d1",
+   "datasets": [
+    1
+   ],
+   "k": 1,
+   "loss_train": 0.0004536229098279128,
+   "fit_time_h": 0.11192662749025557,
+   "measurements_per_unknown": 0.7159035382473427,
+   "fitted": {
+    "def1": {
+     "C10": -60.0,
+     "C12a": 0.0,
+     "C12b": 0.0
+    }
+   },
+   "nominal": {
+    "def1": {
+     "C10": -60.0,
+     "C12a": 0.0,
+     "C12b": 0.0
+    }
+   },
+   "focus_layers": [
+    96.0
+   ],
+   "truth_aberrations": {
+    "def1": {
+     "C10": -60.0,
+     "C12a": 0.0,
+     "C12b": 0.0
+    }
+   },
+   "probe_error": {
+    "def1": {
+     "C10": 0.0,
+     "C12a": 0.0,
+     "C12b": 0.0,
+     "rms_phase_rad": 3.2217001011891363e-08
+    }
+   },
+   "probe_rms_rad_max": 3.2217001011891363e-08,
+   "projected_corr": 0.9287300457988493,
+   "section_depths_A": [
+    10.0,
+    30.0,
+    50.0,
+    70.0,
+    90.0,
+    110.0,
+    130.0,
+    150.0
+   ],
+   "slab_corr": [
+    0.879,
+    0.9132,
+    0.9102,
+    0.9137,
+    0.9204,
+    0.917,
+    0.9181,
+    0.9194
+   ],
+   "mean_slab_corr": 0.9113698175920687,
+   "mean_proj_corr": 0.9246754053830659,
+   "selectivity": -0.01330558779099722,
+   "depth_hits": 1,
+   "n_sections": 8,
+   "depth_error_A": 55.0,
+   "focus_curve_vs_truth_corr": -0.0544433335984728
+  },
+  {
+   "tag": "k2_d0-d1",
+   "datasets": [
+    0,
+    1
+   ],
+   "k": 2,
+   "loss_train": 0.000901812499755041,
+   "fit_time_h": 0.22165634983115726,
+   "measurements_per_unknown": 1.4318070764946853,
+   "fitted": {
+    "def0": {
+     "C10": 0.0,
+     "C12a": 0.0,
+     "C12b": 0.0
+    },
+    "def1": {
+     "C10": -59.19,
+     "C12a": -0.022,
+     "C12b": -0.037
+    }
+   },
+   "nominal": {
+    "def0": {
+     "C10": -0.0,
+     "C12a": 0.0,
+     "C12b": 0.0
+    },
+    "def1": {
+     "C10": -60.0,
+     "C12a": 0.0,
+     "C12b": 0.0
+    }
+   },
+   "focus_layers": [
+    86.0
+   ],
+   "truth_aberrations": {
+    "def0": {
+     "C10": -0.0,
+     "C12a": 0.0,
+     "C12b": 0.0
+    },
+    "def1": {
+     "C10": -60.0,
+     "C12a": 0.0,
+     "C12b": 0.0
+    }
+   },
+   "probe_error": {
+    "def0": {
+     "C10": 0.0,
+     "C12a": 0.0,
+     "C12b": 0.0,
+     "rms_phase_rad": 1.1900013493895434e-08
+    },
+    "def1": {
+     "C10": 0.81,
+     "C12a": -0.022,
+     "C12b": -0.037,
+     "rms_phase_rad": 0.01137486491873058
+    }
+   },
+   "probe_rms_rad_max": 0.01137486491873058,
+   "projected_corr": 0.9215601236263703,
+   "section_depths_A": [
+    10.0,
+    30.0,
+    50.0,
+    70.0,
+    90.0,
+    110.0,
+    130.0,
+    150.0
+   ],
+   "slab_corr": [
+    0.9273,
+    0.9222,
+    0.904,
+    0.911,
+    0.9125,
+    0.9028,
+    0.9204,
+    0.9285
+   ],
+   "mean_slab_corr": 0.9161037934585191,
+   "mean_proj_corr": 0.9295290356939183,
+   "selectivity": -0.013425242235399204,
+   "depth_hits": 1,
+   "n_sections": 8,
+   "depth_error_A": 57.5,
+   "focus_curve_vs_truth_corr": -0.0646998484966512
+  }
+ ]
+}

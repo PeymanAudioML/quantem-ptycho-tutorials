@@ -1,0 +1,2 @@
+[smatrix_window_noiseless_s0_study] best epoch 79 used; 80 of 80 epochs 403 s: train loss 4.536e-04, held-out nan; C10 [-60.0] C12a [0.0] C12b [0.0]
+[smatrix_window_noiseless_s0_study] 32 lateral features (threshold 0.449); depths [88.4, 88.9, 86.2, 89.4, 92.7, 85.6, 92.8, 93.0, 87.9, 87.8, 91.6, 90.0, 91.7, 86.6, 85.1, 92.9, 88.7, 89.7, 93.2, 91.4, 94.5, 88.2, 87.6, 92.7, 95.6, 92.7, 89.1, 92.1, 94.9, 95.8, 91.1, 91.6] A; focus-curve layers [96.0] A

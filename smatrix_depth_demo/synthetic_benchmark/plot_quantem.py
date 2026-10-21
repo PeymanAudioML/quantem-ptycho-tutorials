@@ -6,7 +6,10 @@ depth profile, probe and loss.
 
 Reads runs/<config>/<specimen>/<run>/quantem.npz + summary.json; writes into <run>/plots/
   slices.png      every reconstructed slice (top) vs the true potential integrated over the same slab (bottom), scanned field
-  projected.png   sum of all slices vs the true projected potential, difference, scatter, FRC
+  projected.png   sum of all slices vs the true projected potential, difference, pixel density (log) with the
+                  least-squares line, the ideal slope-1 line and column-core pixels highlighted, FRC
+  columns.png     per atomic column (local maxima of the truth): QuantEM vs true peak height, column-averaged
+                  radial profile and its difference (needs a crystal / columnar specimen)
   depth.png       lateral std per A of each slab (reconstruction vs truth), per-slab correlation, loss curve
   probe.png       initial / final / true probe, real-space amplitude and aperture phase (piston and tilt removed)
   metrics.json    the numbers shown in the plots
@@ -34,6 +37,55 @@ def aperture_phase(Fb, ref, ky, kx):
     A = np.stack([np.ones_like(ky), ky, kx], 1) * np.sqrt(w)[:, None]
     c = np.linalg.lstsq(A, ph * np.sqrt(w), rcond=None)[0]
     return ph - (c[0] + c[1] * ky + c[2] * kx)
+
+
+def background_offset(r, t, pct=30):
+    """Offset b of the ideal line r = t + b, from the background pixels (truth below its pct-th percentile)."""
+    m = t <= np.percentile(t, pct)
+    return float(np.median(r[m] - t[m]))
+
+
+def column_analysis(t, r, dr, core_A=0.5, edge_A=1.0):
+    """Atomic columns found as local maxima of the truth t. For each: true peak, reconstructed peak (max of r
+    within core_A of it, so a small shift is allowed) and the radial profile of both around it.
+    Returns dict with peak positions, peak values, core mask, radial profiles (r in A) and nearest-neighbour distance."""
+    from scipy import ndimage
+    rc = max(1, int(round(core_A / dr)))
+    size = 2 * rc + 1
+    loc = (t == ndimage.maximum_filter(t, size=size)) & (t > np.percentile(t, 90))
+    e = int(round(edge_A / dr))
+    loc[:e], loc[-e:], loc[:, :e], loc[:, -e:] = False, False, False, False
+    pk = np.argwhere(loc)
+    out = dict(peaks=pk, n=len(pk))
+    if len(pk) == 0:
+        return out
+    yy, xx = np.indices(t.shape)
+    core = np.zeros(t.shape, bool)
+    rmax = []
+    for y, x in pk:
+        d = np.hypot(yy - y, xx - x) <= rc
+        core |= d
+        rmax.append(r[d].max())
+    out.update(t_peak=t[pk[:, 0], pk[:, 1]], r_peak=np.array(rmax), core=core)
+    # radial profile out to half the nearest-neighbour column distance (so neighbours do not mix in)
+    if len(pk) > 1:
+        dd = np.hypot(*(pk[:, None, :] - pk[None, :, :]).transpose(2, 0, 1)).astype(float)
+        np.fill_diagonal(dd, np.inf)
+        nn = float(np.median(dd.min(1))) * dr
+    else:
+        nn = 4 * core_A
+    R = 0.5 * nn
+    edges = np.arange(0, R + 1e-9, dr / 2)
+    rt, rr_, cnt = np.zeros(len(edges) - 1), np.zeros(len(edges) - 1), np.zeros(len(edges) - 1)
+    for y, x in pk:
+        dist = np.hypot(yy - y, xx - x) * dr
+        b = np.digitize(dist, edges) - 1
+        ok = (b >= 0) & (b < len(rt))
+        np.add.at(rt, b[ok], t[ok]), np.add.at(rr_, b[ok], r[ok]), np.add.at(cnt, b[ok], 1)
+    keep = cnt > 0
+    out.update(prof_r=(0.5 * (edges[1:] + edges[:-1]))[keep], prof_t=rt[keep] / cnt[keep],
+               prof_q=rr_[keep] / cnt[keep], nn_A=nn)
+    return out
 
 
 def main():
@@ -108,17 +160,57 @@ def main():
     im = ax[2].imshow(d, cmap="RdBu_r", vmin=-dm, vmax=dm)
     ax[2].set_title(f"difference: RMSE {proj['rmse_fit']:.3f} rad, NRMSE {proj['nrmse_fit']:.2f}"), ax[2].axis("off")
     fig.colorbar(im, ax=ax[2], shrink=0.8)
-    ax[3].plot(t_proj.ravel(), r_proj.ravel(), ",", color="k", alpha=0.3)
+    # pixel density (log), fitted line, ideal slope-1 line through the background offset, column-core pixels
+    b0 = background_offset(r_proj, t_proj)
+    cols = column_analysis(t_proj, r_proj, dr_q)
+    hb = ax[3].hexbin(t_proj.ravel(), r_proj.ravel(), gridsize=80, bins="log", cmap="Greys", mincnt=1)
+    fig.colorbar(hb, ax=ax[3], shrink=0.8, label="pixels per bin (log)")
+    if cols["n"]:
+        c_ = cols["core"]
+        ax[3].plot(t_proj[c_], r_proj[c_], ".", color="tab:orange", ms=1.5, alpha=0.5,
+                   label=f"column cores (≤0.5 Å, {cols['n']} columns)")
     xx = np.array([t_proj.min(), t_proj.max()])
-    ax[3].plot(xx, proj["slope"] * xx + proj["offset"], "r-", label=f"fit, slope {proj['slope']:.2f}")
-    ax[3].set_xlabel("truth (rad)"), ax[3].set_ylabel("QuantEM (rad)"), ax[3].legend()
-    ax[3].set_title(f"pixel scatter, corr {proj['corr']:.3f}")
+    ax[3].plot(xx, proj["slope"] * xx + proj["offset"], "r-", label=f"least-squares fit, slope {proj['slope']:.2f}")
+    ax[3].plot(xx, xx + b0, "b--", label="ideal: slope 1 (offset from background)")
+    ax[3].set_xlabel("truth (rad)"), ax[3].set_ylabel("QuantEM (rad)"), ax[3].legend(fontsize=7, loc="upper left")
+    ax[3].set_title(f"pixel density, corr {proj['corr']:.3f}")
     ax[4].plot(k_frc, frc, "k.-"), ax[4].axhline(0.5, color="r", ls=":")
     ax[4].set_xlabel("spatial frequency (1/Å)"), ax[4].set_title("FRC (QuantEM projection vs truth)"), ax[4].set_ylim(-0.1, 1.05)
     fig.suptitle(title + " — projected potential", fontsize=10)
     fig.tight_layout()
     fig.savefig(os.path.join(out, "projected.png"), dpi=90)
     plt.close(fig)
+
+    # atomic columns: peak height per column and the column-averaged radial profile
+    col_metrics = dict(n_columns=int(cols["n"]), background_offset=b0)
+    if cols["n"]:
+        tp_, rp_ = cols["t_peak"], cols["r_peak"] - b0
+        ratio = rp_ / tp_
+        col_metrics.update(peak_ratio_mean=float(ratio.mean()), peak_ratio_std=float(ratio.std()),
+                           peak_ratio_min=float(ratio.min()), peak_ratio_max=float(ratio.max()),
+                           nn_distance_A=cols["nn_A"])
+        fig, ax = plt.subplots(1, 3, figsize=(17, 5))
+        lim = [0, 1.05 * max(tp_.max(), rp_.max())]
+        ax[0].plot(tp_, rp_, "o", color="tab:orange", mec="k", ms=5)
+        ax[0].plot(lim, lim, "b--", label="ideal (y = x)")
+        ax[0].set_xlim(lim), ax[0].set_ylim(lim), ax[0].set_aspect("equal")
+        ax[0].set_xlabel("true column peak (rad)"), ax[0].set_ylabel("QuantEM column peak − background offset (rad)")
+        ax[0].set_title(f"peak per column: QuantEM/truth = {ratio.mean():.2f} ± {ratio.std():.2f} ({cols['n']} columns)")
+        ax[0].legend(fontsize=8)
+        ax[1].plot(cols["prof_r"], cols["prof_t"], "g-", lw=2, label="truth")
+        ax[1].plot(cols["prof_r"], cols["prof_q"] - b0, "k.-", label="QuantEM − background offset")
+        ax[1].set_xlabel("distance from column centre (Å)"), ax[1].set_ylabel("phase (rad)")
+        ax[1].set_title(f"column-averaged radial profile (out to ½ neighbour distance, {cols['nn_A']:.2f} Å)")
+        ax[1].legend(fontsize=8)
+        d_ = cols["prof_q"] - b0 - cols["prof_t"]
+        ax[2].axhline(0, color="0.6", lw=0.8)
+        ax[2].plot(cols["prof_r"], d_, "r.-")
+        ax[2].set_xlabel("distance from column centre (Å)"), ax[2].set_ylabel("QuantEM − truth (rad)")
+        ax[2].set_title("profile difference\n< 0: missing at the core, > 0: spread to the shoulder", fontsize=9)
+        fig.suptitle(title + " — atomic columns (projected potential)", fontsize=10)
+        fig.tight_layout()
+        fig.savefig(os.path.join(out, "columns.png"), dpi=90)
+        plt.close(fig)
 
     # depth + loss
     rprof, tprof = crop.reshape(n, -1).std(1) / dz, t_slabs.reshape(n, -1).std(1) / dz
@@ -169,7 +261,7 @@ def main():
     plt.close(fig)
 
     metrics = dict(run=a.run, planes=int(n), slice_boundaries_A=bnd.tolist(), final_loss=float(loss[-1]),
-                   projected={k: v for k, v in proj.items()}, depth_profile_corr=rr.corr(rprof, tprof),
+                   projected={k: v for k, v in proj.items()}, columns=col_metrics, depth_profile_corr=rr.corr(rprof, tprof),
                    slab_corr=slab_corr.tolist(), slab_corr_vs_projection=proj_corr_per_slab.tolist(),
                    mean_slab_corr=float(np.nanmean(slab_corr)), mean_proj_corr=float(np.mean(proj_corr_per_slab)),
                    probe=dict(initial_overlap=m_i[0], initial_rms_rad=m_i[1], final_overlap=m_f[0], final_rms_rad=m_f[1]))

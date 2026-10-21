@@ -1,0 +1,26 @@
+# written by defocus_study.py: datasets [1] of the study 'defocus_study_si_defocus_series_w100_window_noiseless' (def<j> here = source def[1])
+version: 1
+name: defocus_study_si_defocus_series_w100_window_noiseless
+microscope:
+  energy_ev: 200000.0
+  alpha_mrad: 20.0
+  aperture_taper_mrad: 2.0
+sampling:
+  dr_A: 0.1
+  K: 100
+  Y: 800
+  scan_shape:
+  - 37
+  - 37
+specimen:
+  thickness_A: 160.0
+defocus:
+  reference: 0
+  nominal_C10:
+  - -60.0
+  source_datasets:
+  - 1
+specimens:
+  k1_d1:
+    group: k1_d1
+    features: []

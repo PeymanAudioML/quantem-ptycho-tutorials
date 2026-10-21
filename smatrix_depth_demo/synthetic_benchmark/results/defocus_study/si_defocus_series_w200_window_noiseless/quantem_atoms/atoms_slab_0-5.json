@@ -1,0 +1,45 @@
+{
+ "slab_A": [
+  0.0,
+  5.0
+ ],
+ "layers_z_A": [
+  0.0,
+  1.37,
+  2.73,
+  4.1
+ ],
+ "runs": {
+  "quantem_window_noiseless_d2_F_smatrix_fixed_call_s0_k4Q32": {
+   "slices": [
+    [
+     0.0,
+     5.0
+    ]
+   ],
+   "corr_vs_own_truth": 0.864764928817749,
+   "corr_vs_projection": 0.8716414570808411,
+   "layers_in_rec_z_A": [
+    0.0,
+    1.37,
+    2.73,
+    4.1
+   ]
+  },
+  "quantem_window_noiseless_d2_E_smatrix_trained_call_s0_k4QE": {
+   "slices": [
+    [
+     0.0,
+     4.000000000000003
+    ]
+   ],
+   "corr_vs_own_truth": 0.8504833579063416,
+   "corr_vs_projection": 0.8816021084785461,
+   "layers_in_rec_z_A": [
+    0.0,
+    1.37,
+    2.73
+   ]
+  }
+ }
+}

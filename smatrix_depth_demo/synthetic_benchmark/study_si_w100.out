@@ -1,0 +1,17 @@
+study 'si_defocus_series_w100_window_noiseless': 2 datasets in /mnt/data/quantem-ptycho-tutorials/smatrix_depth_demo/synthetic_benchmark/data/iman_data/si_defocus_series_w100/window_noiseless
+  def0: nominal defocus 0 A (C10 = -0)  <- reference
+  def1: nominal defocus 60 A (C10 = -60)
+  200 kV, alpha 20 mrad (taper 2), K 100, dk 0.10000 1/A -> dr 0.1000 A, scan [37, 37] step 0.3 A, thickness 160 A
+  truth: /mnt/data/quantem-ptycho-tutorials/smatrix_depth_demo/synthetic_benchmark/data/iman_data/si_defocus_series_w100/ground_truth
+  subsets: [[0], [1], [0, 1]]
+  output: /mnt/data/quantem-ptycho-tutorials/smatrix_depth_demo/synthetic_benchmark/results/defocus_study/si_defocus_series_w100_window_noiseless
+[k1_d0] 00:17:43 fitting: /mnt/data/quantem-ptycho-tutorials/smatrix_depth_demo/synthetic_benchmark/../../.venv/bin/python run_benchmark.py smatrix --config /mnt/data/quantem-ptycho-tutorials/smatrix_depth_demo/synthetic_benchmark/results/defocus_study/si_defocus_series_w100_window_noiseless/configs/k1_d0.yaml --specimen k1_d0 --variant window --noise noiseless --epochs 80 --warmup 8 --batch 16 --lr-S 0.02 --heldout 0.0 --dz 2.0 --tag study --device cuda --allow-underdetermined --monitor-every 0 --checkpoint-every 5
+[k1_d0] 00:24:35 done
+[k1_d0] evaluated: probe RMS 0.0000 rad, slab corr 0.914, depth hits 2/8
+[k1_d1] 00:24:38 fitting: /mnt/data/quantem-ptycho-tutorials/smatrix_depth_demo/synthetic_benchmark/../../.venv/bin/python run_benchmark.py smatrix --config /mnt/data/quantem-ptycho-tutorials/smatrix_depth_demo/synthetic_benchmark/results/defocus_study/si_defocus_series_w100_window_noiseless/configs/k1_d1.yaml --specimen k1_d1 --variant window --noise noiseless --epochs 80 --warmup 8 --batch 16 --lr-S 0.02 --heldout 0.0 --dz 2.0 --tag study --device cuda --allow-underdetermined --monitor-every 0 --checkpoint-every 5
+[k1_d1] 00:31:32 done
+[k1_d1] evaluated: probe RMS 0.0000 rad, slab corr 0.911, depth hits 1/8
+[k2_d0-d1] 00:31:34 fitting: /mnt/data/quantem-ptycho-tutorials/smatrix_depth_demo/synthetic_benchmark/../../.venv/bin/python run_benchmark.py smatrix --config /mnt/data/quantem-ptycho-tutorials/smatrix_depth_demo/synthetic_benchmark/results/defocus_study/si_defocus_series_w100_window_noiseless/configs/k2_d0-d1.yaml --specimen k2_d0-d1 --variant window --noise noiseless --epochs 80 --warmup 8 --batch 16 --lr-S 0.02 --heldout 0.0 --dz 2.0 --tag study --device cuda --allow-underdetermined --monitor-every 0 --checkpoint-every 5
+[k2_d0-d1] 00:45:03 done
+[k2_d0-d1] evaluated: probe RMS 0.0114 rad, slab corr 0.916, depth hits 1/8
+report: /mnt/data/quantem-ptycho-tutorials/smatrix_depth_demo/synthetic_benchmark/results/defocus_study/si_defocus_series_w100_window_noiseless/summary.md

@@ -1,0 +1,27 @@
+geometry check FAILED: measurements/unknowns: 0.329 vs limit 0.7 (1 datasets x 1369 positions, 877 beams)
+geometry check failed but --allow-underdetermined is set: fitting anyway (expect a degraded S)
+Traceback (most recent call last):
+  File "/mnt/data/quantem-ptycho-tutorials/smatrix_depth_demo/synthetic_benchmark/run_benchmark.py", line 664, in <module>
+    main()
+  File "/mnt/data/quantem-ptycho-tutorials/smatrix_depth_demo/synthetic_benchmark/run_benchmark.py", line 658, in main
+    smatrix(cfg, a)
+  File "/mnt/data/quantem-ptycho-tutorials/smatrix_depth_demo/synthetic_benchmark/run_benchmark.py", line 140, in smatrix
+    hist = fit_subset(model, amp_train, train_idx, a, seed, log, select_fn=select_fn,
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/data/quantem-ptycho-tutorials/smatrix_depth_demo/synthetic_benchmark/run_benchmark.py", line 535, in fit_subset
+    return sj.fit(model, amp[sub], epochs=a.epochs, warmup=a.warmup, batch=a.batch, lr_S=a.lr_S, mode=a.mode,
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/data/quantem-ptycho-tutorials/smatrix_depth_demo/simple_joint.py", line 285, in fit
+    loss.backward()
+  File "/mnt/data/quantem-ptycho-tutorials/.venv/lib/python3.11/site-packages/torch/_tensor.py", line 631, in backward
+    torch.autograd.backward(
+  File "/mnt/data/quantem-ptycho-tutorials/.venv/lib/python3.11/site-packages/torch/autograd/__init__.py", line 381, in backward
+    _engine_run_backward(
+  File "/mnt/data/quantem-ptycho-tutorials/.venv/lib/python3.11/site-packages/torch/autograd/graph.py", line 869, in _engine_run_backward
+    return Variable._execution_engine.run_backward(  # Calls into the C++ engine to run the backward pass
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 4.18 GiB. GPU 0 has a total capacity of 14.56 GiB of which 3.99 GiB is free. Including non-PyTorch memory, this process has 10.57 GiB memory in use. Of the allocated memory 7.09 GiB is allocated by PyTorch, and 3.34 GiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://docs.pytorch.org/docs/stable/notes/cuda.html#optimizing-memory-usage-with-pytorch-cuda-alloc-conf)
+geometry check FAILED: measurements/unknowns: 0.329 vs limit 0.7 (1 datasets x 1369 positions, 877 beams)
+geometry check failed but --allow-underdetermined is set: fitting anyway (expect a degraded S)
+[smatrix_window_noiseless_s0_study] best epoch 79 used; 80 of 80 epochs 6710 s: train loss 2.210e-04, held-out nan; C10 [0.0] C12a [0.0] C12b [0.0]
+[smatrix_window_noiseless_s0_study] 25 lateral features (threshold 0.576); depths [84.1, 80.4, 85.3, 82.2, 80.3, 82.1, 83.6, 80.9, 82.0, 81.7, 84.0, 82.8, 83.0, 82.5, 83.7, 82.1, 83.0, 81.9, 83.3, 82.7, 82.3, 84.4, 83.1, 80.8, 80.5] A; focus-curve layers [80.0] A

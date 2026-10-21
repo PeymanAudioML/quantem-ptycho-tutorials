@@ -1,0 +1,41 @@
+[NbConvertApp] Converting notebook /tmp/claude-1000/-mnt-data-quantem-ptycho-tutorials/140810b3-8a51-4149-8761-6b157f1f5ff5/scratchpad/gen_w200.ipynb to notebook
+[IPKernelApp] WARNING | Kernel is running over TCP without encryption. All communication (including code and outputs) is sent in plain text and is susceptible to eavesdropping. Use IPC transport or launch with kernel manager-provisioned CurveZMQ keys to enable transport encryption.
+[NbConvertApp] Writing 675703 bytes to /tmp/claude-1000/-mnt-data-quantem-ptycho-tutorials/140810b3-8a51-4149-8761-6b157f1f5ff5/scratchpad/gen_w200_out.ipynb
+GENERATION DONE 01:04:33
+{
+  "state": "COMPLETE",
+  "completed_defoci": [
+    0,
+    1,
+    2,
+    3
+  ],
+  "intended_defoci_A": [
+    0.0,
+    50.0,
+    80.0,
+    150.0
+  ]
+}
+study 'si_defocus_series_w200_window_noiseless': 4 datasets in /mnt/data/quantem-ptycho-tutorials/smatrix_depth_demo/synthetic_benchmark/data/iman_data/si_defocus_series_w200/window_noiseless
+  def0: nominal defocus 0 A (C10 = -0)  <- reference
+  def1: nominal defocus 50 A (C10 = -50)
+  def2: nominal defocus 80 A (C10 = -80)
+  def3: nominal defocus 150 A (C10 = -150)
+  200 kV, alpha 20 mrad (taper 2), K 200, dk 0.05000 1/A -> dr 0.1000 A, scan [37, 37] step 0.3 A, thickness 160 A
+  truth: /mnt/data/quantem-ptycho-tutorials/smatrix_depth_demo/synthetic_benchmark/data/iman_data/si_defocus_series_w200/ground_truth
+  subsets: [[0], [2], [0, 1, 2, 3]]
+  output: /mnt/data/quantem-ptycho-tutorials/smatrix_depth_demo/synthetic_benchmark/results/defocus_study/si_defocus_series_w200_window_noiseless
+[k1_d0] 01:04:36 fitting: /mnt/data/quantem-ptycho-tutorials/smatrix_depth_demo/synthetic_benchmark/../../.venv/bin/python run_benchmark.py smatrix --config /mnt/data/quantem-ptycho-tutorials/smatrix_depth_demo/synthetic_benchmark/results/defocus_study/si_defocus_series_w200_window_noiseless/configs/k1_d0.yaml --specimen k1_d0 --variant window --noise noiseless --epochs 80 --warmup 8 --batch 16 --lr-S 0.02 --heldout 0.0 --dz 2.0 --tag study --device cuda --allow-underdetermined --monitor-every 0 --checkpoint-every 5
+[k1_d0] 01:04:44 FAILED, see /mnt/data/quantem-ptycho-tutorials/smatrix_depth_demo/synthetic_benchmark/results/defocus_study/si_defocus_series_w200_window_noiseless/logs/k1_d0.log
+[k1_d2] 01:04:44 fitting: /mnt/data/quantem-ptycho-tutorials/smatrix_depth_demo/synthetic_benchmark/../../.venv/bin/python run_benchmark.py smatrix --config /mnt/data/quantem-ptycho-tutorials/smatrix_depth_demo/synthetic_benchmark/results/defocus_study/si_defocus_series_w200_window_noiseless/configs/k1_d2.yaml --specimen k1_d2 --variant window --noise noiseless --epochs 80 --warmup 8 --batch 16 --lr-S 0.02 --heldout 0.0 --dz 2.0 --tag study --device cuda --allow-underdetermined --monitor-every 0 --checkpoint-every 5
+[k1_d2] 01:04:52 FAILED, see /mnt/data/quantem-ptycho-tutorials/smatrix_depth_demo/synthetic_benchmark/results/defocus_study/si_defocus_series_w200_window_noiseless/logs/k1_d2.log
+[k4_d0-d1-d2-d3] 01:04:52 fitting: /mnt/data/quantem-ptycho-tutorials/smatrix_depth_demo/synthetic_benchmark/../../.venv/bin/python run_benchmark.py smatrix --config /mnt/data/quantem-ptycho-tutorials/smatrix_depth_demo/synthetic_benchmark/results/defocus_study/si_defocus_series_w200_window_noiseless/configs/k4_d0-d1-d2-d3.yaml --specimen k4_d0-d1-d2-d3 --variant window --noise noiseless --epochs 80 --warmup 8 --batch 16 --lr-S 0.02 --heldout 0.0 --dz 2.0 --tag study --device cuda --allow-underdetermined --monitor-every 0 --checkpoint-every 5
+[k4_d0-d1-d2-d3] 01:14:22 FAILED, see /mnt/data/quantem-ptycho-tutorials/smatrix_depth_demo/synthetic_benchmark/results/defocus_study/si_defocus_series_w200_window_noiseless/logs/k4_d0-d1-d2-d3.log
+Traceback (most recent call last):
+  File "/mnt/data/quantem-ptycho-tutorials/smatrix_depth_demo/synthetic_benchmark/plot_study_sections.py", line 64, in <module>
+    main()
+  File "/mnt/data/quantem-ptycho-tutorials/smatrix_depth_demo/synthetic_benchmark/plot_study_sections.py", line 34, in main
+    summary = json.load(open(os.path.join(out_dir, "summary.json")))
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/mnt/data/quantem-ptycho-tutorials/smatrix_depth_demo/synthetic_benchmark/results/defocus_study/si_defocus_series_w200_window_noiseless/summary.json'
